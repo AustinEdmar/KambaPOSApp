@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Imagem de fundo -->
+    <item>
+        <bitmap
+            android:src="@drawable/fundo_splash"
+            android:gravity="fill"/>
+    </item>
+
+</layer-list>

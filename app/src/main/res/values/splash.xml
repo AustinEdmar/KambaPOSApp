@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.Mesax.Splash" parent="Theme.SplashScreen">
+
+        <!-- imagem como background -->
+        <item name="windowSplashScreenBackground">
+            @drawable/splash_background
+        </item>
+
+        <!-- remove ícone central -->
+        <item name="windowSplashScreenAnimatedIcon">@null</item>
+
+        <!-- tema principal -->
+        <item name="postSplashScreenTheme">@style/Theme.Mesax</item>
+
+    </style>
+
+</resources>
