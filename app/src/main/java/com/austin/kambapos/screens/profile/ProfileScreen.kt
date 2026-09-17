@@ -37,6 +37,8 @@ import com.austin.kambapos.viewmodel.HomeViewModel
 import com.austin.kambapos.viewmodel.OrderViewModel
 import com.austin.kambapos.viewmodel.ShiftViewModel
 
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 // Cores de suporte que não existem no color scheme por omissão do MaterialTheme.
 // Mantidas centralizadas aqui para facilitar dark-mode/tema no futuro.
 private val StatusOnline = Color(0xFF2E7D32)
@@ -65,9 +67,16 @@ fun ProfileScreen(
     val snackbarHostState = remember { SnackbarHostState() }
     var showCloseShiftDialog by remember { mutableStateOf(false) }
 
+
     // 👈 novo — estado do chat (UI em pausa, ver bloco comentado abaixo)
     val messages by chatViewModel.messages.collectAsState()
     val chatListState = rememberLazyListState()
+
+    // dentro de ProfileScreen:
+    var showLogoutDialog by remember { mutableStateOf(false) }
+    var isClosingShift by remember { mutableStateOf(false) }
+    var isLoggingOut by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) chatListState.animateScrollToItem(messages.size - 1)
@@ -80,12 +89,14 @@ fun ProfileScreen(
     }
 
     LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.Unauthenticated) {
+        if (uiState is AuthUiState.Unauthenticated && !isLoggingOut) {
             navController.navigate(Screens.Login.route) {
                 popUpTo(0) { inclusive = true }
             }
         }
     }
+
+
 
     LaunchedEffect(shiftUiState) {
         when (shiftUiState) {
@@ -243,6 +254,7 @@ fun ProfileScreen(
             PrimaryGradientButton(
                 text = "Fechar o Turno",
                 icon = Icons.Outlined.LockClock,
+                enabled = !isClosingShift && !isLoggingOut,   // 👈 bloqueia nos dois casos
                 onClick = { showCloseShiftDialog = true }
             )
 
@@ -253,11 +265,30 @@ fun ProfileScreen(
             Spacer(modifier = Modifier.height(8.dp))
 
             LogoutButton(
-                isLoading = isLoading,
-                onClick = { AuthviewModel.logout() }
+                isLoading = isLoggingOut,
+                onClick = { showLogoutDialog = true }
             )
 
             Spacer(modifier = Modifier.height(32.dp))
+        }
+
+        if (showLogoutDialog) {
+            LogoutConfirmDialog(
+                onDismiss = { showLogoutDialog = false },
+                onConfirm = {
+                    showLogoutDialog = false
+                    isLoggingOut = true
+                    AuthviewModel.logout() // destrói a sessão imediatamente
+
+                    scope.launch {
+                        delay(4000)
+                        navController.navigate(Screens.Login.route) {
+                            popUpTo(0) { inclusive = true }
+                        }
+                        isLoggingOut = false
+                    }
+                }
+            )
         }
 
         if (showCloseShiftDialog) {
@@ -426,22 +457,44 @@ private fun SectionLabel(text: String) {
 private fun PrimaryGradientButton(
     text: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
+    enabled: Boolean = true,          // 👈 novo
     onClick: () -> Unit
 ) {
     Button(
         onClick = onClick,
+        enabled = enabled,            // 👈 novo
         modifier = Modifier
             .fillMaxWidth()
             .height(52.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(brush = SunmiGradient),
+            .background(
+                brush = if (enabled) SunmiGradient
+                else Brush.linearGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f)
+                    )
+                )
+            ),
         shape = RoundedCornerShape(14.dp),
         elevation = ButtonDefaults.buttonElevation(0.dp),
         colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
     ) {
-        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Icon(
+            icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp),
+            tint = if (enabled) LocalContentColor.current
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(modifier = Modifier.width(8.dp))
-        Text(text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+        Text(
+            text,
+            fontWeight = FontWeight.SemiBold,
+            fontSize = 15.sp,
+            color = if (enabled) LocalContentColor.current
+            else MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -454,8 +507,8 @@ private fun LogoutButton(isLoading: Boolean, onClick: () -> Unit) {
             .fillMaxWidth()
             .height(52.dp),
         shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
-        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error)
     ) {
         if (isLoading) {
             CircularProgressIndicator(
@@ -556,6 +609,7 @@ private fun CloseShiftDialog(
         },
         confirmButton = {
             Button(
+
                 onClick = onConfirm,
                 modifier = Modifier
                     .fillMaxWidth()
@@ -589,4 +643,70 @@ private fun ShiftSummaryRow(
             color = if (valueColor == Color.Unspecified) MaterialTheme.colorScheme.onSurface else valueColor
         )
     }
+}
+
+
+@Composable
+private fun LogoutConfirmDialog(
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(20.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(WarningContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Logout,
+                    contentDescription = null,
+                    tint = WarningOnContainer,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "Terminar sessão?",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 17.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Text(
+                text = "Vai precisar de iniciar sessão novamente para continuar a usar a aplicação.",
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                Text("Cancelar")
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color.Red),
+                shape = RoundedCornerShape(14.dp),
+                elevation = ButtonDefaults.buttonElevation(0.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
+            ) {
+                Text("Sim, sair", fontWeight = FontWeight.SemiBold, color = Color.White)
+            }
+        }
+    )
 }
