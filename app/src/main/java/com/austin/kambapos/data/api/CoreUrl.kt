@@ -6,7 +6,7 @@ object CoreUrl {
    //const val PROTOCOL = "https"
    const val PROTOCOL = "http://"
 
-    const val HOST = "192.168.214.166" // sunmi 925
+    const val HOST = "172.20.10.2" // sunmi 925192.168.11.39
 
    const val PORT = "8080"
    const val PUSHER_PORT = 8081

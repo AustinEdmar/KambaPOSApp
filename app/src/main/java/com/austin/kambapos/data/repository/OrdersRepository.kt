@@ -19,16 +19,12 @@ class OrdersRepository @Inject constructor (
 ){
 
     suspend fun getOrders(shiftId: Int): OrdersDTO {
-        // No PDV, abrimos a ordem vinculada ao turno ou usuário, 
-        // mas a API parece esperar um OpenOrderRequest. 
-        // Se não há mesas, passamos 0 ou removemos se a API permitir.
         val response = api.getOrder(OpenOrderRequest(0))
+        Log.d("ORDER_DEBUG", "openOrder retornou id=${response.id} status=${response.status} total=${response.total}")
 
         if (response.status == "open") {
             orderDao.insert(response.toEntity())
         }
-
-        Log.d("RESPONSE", "resposta: ${response}")
         return response
     }
 
@@ -60,7 +56,7 @@ class OrdersRepository @Inject constructor (
             if (response.isSuccessful) {
                 val message = response.body()?.message ?: "Pedido fechado"
                 cartDao.clearCart(orderId)
-                orderDao.deleteOrderById(orderId)
+             //   orderDao.deleteOrderById(orderId)
                 Result.success(message)
             } else {
                 val errorMsg = response.errorBody()?.string() ?: "Erro ao fechar pedido"
@@ -77,15 +73,19 @@ class OrdersRepository @Inject constructor (
 
     suspend fun syncOrders() {
         try {
-            val response = api.getOrders()
-            val remoteOrders = response.data
-            val openOrders = remoteOrders.filter { it.status == "open" }
+            val remoteOrders = api.getOrders()
+            Log.d("ORDER_DEBUG", "syncOrders trouxe ${remoteOrders} ordens")
 
-            orderDao.insertOrders(
-                openOrders.map { it.toEntity() }
-            )
+            orderDao.insertOrders(remoteOrders.map { it.toEntity() })
+
+            remoteOrders.forEach { dto ->
+                orderDao.clearItemsForOrder(dto.id)
+                orderDao.insertItems(dto.items.filterNotNull().map { it.toEntity(dto.id) })
+            }
         } catch (e: Exception) {
-            // offline → usa Room
+            Log.e("ORDER_DEBUG", "syncOrders falhou", e)
         }
     }
+
+    fun observeOrdersWithItems(userId: Int) = orderDao.observeOrdersWithItems(userId)
 }

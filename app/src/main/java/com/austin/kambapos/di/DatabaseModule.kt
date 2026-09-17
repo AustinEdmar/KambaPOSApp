@@ -7,37 +7,20 @@ import com.austin.kambapos.data.local.dao.CategoryDao
 import com.austin.kambapos.data.local.dao.OrderDao
 import com.austin.kambapos.data.local.dao.ProductDao
 import com.austin.kambapos.data.local.dao.ShiftDao
-import com.austin.kambapos.data.local.dao.TableDao
 import com.austin.kambapos.data.local.database.OrderDatabase
 import com.austin.kambapos.data.local.database.ProductDatabase
 import com.austin.kambapos.data.local.database.ShiftDatabase
-import com.austin.kambapos.data.local.database.TablesDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import javax.inject.Singleton
+import kotlin.jvm.java
 
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
-    @Provides
-    @Singleton
-    fun provideTaskDatabase(context: Application) : TablesDatabase{
-        return Room.databaseBuilder(
-            context,
-            TablesDatabase::class.java,
-            "table_db"
-        )
-            .fallbackToDestructiveMigration()
-            .build()
-    }
 
-    @Provides
-    @Singleton
-    fun provideTasksDao(db: TablesDatabase): TableDao {
-        return db.TableDao()
-    }
 
     @Provides
     @Singleton

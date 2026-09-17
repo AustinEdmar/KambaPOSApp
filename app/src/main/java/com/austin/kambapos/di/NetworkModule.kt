@@ -6,7 +6,6 @@ import com.austin.kambapos.data.api.CoreUrl.BASE_URL
 import com.austin.kambapos.data.api.OrdersApi
 import com.austin.kambapos.data.api.ProductApi
 import com.austin.kambapos.data.api.ShiftApi
-import com.austin.kambapos.data.api.TablesApi
 import com.austin.kambapos.data.datastore.TokenManager
 import dagger.Module
 import dagger.Provides
@@ -50,9 +49,7 @@ object NetworkModule {
     fun provideAuthApi(retrofit: Retrofit): AuthApi =
         retrofit.create(AuthApi::class.java)
     
-    @Provides
-    fun provideTablesApi(retrofit: Retrofit): TablesApi =
-        retrofit.create(TablesApi::class.java)
+
 
     @Provides
     fun provideShiftApi(retrofit: Retrofit): ShiftApi =

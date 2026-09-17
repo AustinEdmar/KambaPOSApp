@@ -13,12 +13,8 @@ import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
     primary = SunmiOrange,
-   // onPrimary = OrangeOnPrimary, // 🔥 ESSENCIAL
 
-   // secondary = OrangePrimary,
     onSecondary = Color.White,
-
-
 
     onTertiary = Color.Black,
 
@@ -29,19 +25,12 @@ private val DarkColorScheme = darkColorScheme(
     onSurface = Color.White
 )
 
-
-//SunmiGradientHorizontal
-
-
 private val LightColorScheme = lightColorScheme(
     primary = SunmiOrange,
-   // onPrimary = OrangeOnPrimary, // 🔥 ESSENCIAL
 
-   // secondary = OrangePrimary,
     onSecondary = Color.White,
 
 
-    onTertiary = Color.White,
 
     background = Color(0xFFFFFBFE),
     onBackground = Color(0xFF1C1B1F),

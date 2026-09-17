@@ -16,8 +16,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -30,11 +32,17 @@ import com.austin.kambapos.screens.home.components.ScreenScaffold
 import com.austin.kambapos.ui.theme.SunmiGradient
 import com.austin.kambapos.utils.toKwanza
 import com.austin.kambapos.viewmodel.AuthViewModel
-import com.austin.kambapos.viewmodel.ChatViewModel   // 👈 novo
+import com.austin.kambapos.viewmodel.ChatViewModel   // 👈 novo (chat em pausa, ver bloco comentado abaixo)
 import com.austin.kambapos.viewmodel.HomeViewModel
 import com.austin.kambapos.viewmodel.OrderViewModel
 import com.austin.kambapos.viewmodel.ShiftViewModel
 
+// Cores de suporte que não existem no color scheme por omissão do MaterialTheme.
+// Mantidas centralizadas aqui para facilitar dark-mode/tema no futuro.
+private val StatusOnline = Color(0xFF2E7D32)
+private val StatusOffline = Color(0xFFC62828)
+private val WarningContainer = Color(0xFFFFF3E0)
+private val WarningOnContainer = Color(0xFFE65100)
 
 @Composable
 fun ProfileScreen(
@@ -44,8 +52,7 @@ fun ProfileScreen(
     HomeViewModel: HomeViewModel = hiltViewModel(),
     shiftViewModel: ShiftViewModel = hiltViewModel(),
     orderViewModel: OrderViewModel = hiltViewModel(),
-    chatViewModel: ChatViewModel = hiltViewModel(),  // 👈 novo
-
+    chatViewModel: ChatViewModel = hiltViewModel(),  // 👈 novo (chat em pausa, ver bloco comentado abaixo)
     onProfileClick: () -> Unit,
     onCartClick: () -> Unit,
     isConnected: Boolean
@@ -55,11 +62,10 @@ fun ProfileScreen(
     val userState = HomeViewModel.uiState
     val total by orderViewModel.totalSales.collectAsState()
     val shiftUiState = shiftViewModel.shitftUiState
-    val connectionStatus = if (isConnected) "Conectado" else "Desconectado"
     val snackbarHostState = remember { SnackbarHostState() }
     var showCloseShiftDialog by remember { mutableStateOf(false) }
 
-    // 👈 novo — estado do chat
+    // 👈 novo — estado do chat (UI em pausa, ver bloco comentado abaixo)
     val messages by chatViewModel.messages.collectAsState()
     val chatListState = rememberLazyListState()
 
@@ -78,12 +84,6 @@ fun ProfileScreen(
             navController.navigate(Screens.Login.route) {
                 popUpTo(0) { inclusive = true }
             }
-        }
-    }
-
-    LaunchedEffect(uiState) {
-        if (uiState is UserUiState.Success) {
-            orderViewModel.setUserId(uiState.user.id)
         }
     }
 
@@ -123,99 +123,17 @@ fun ProfileScreen(
             modifier = modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp)
+                .padding(horizontal = 20.dp)
         ) {
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(20.dp))
 
-            // ── Profile Header Card ──────────────────────────────────────────
-            Card(
-                shape = RoundedCornerShape(20.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = 6.dp,
-                        shape = RoundedCornerShape(20.dp),
-                        ambientColor = Color(0x18000000),
-                        spotColor = Color(0x18000000)
-                    )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFE8EEFF)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Avatar",
-                            modifier = Modifier.size(40.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+            ProfileHeaderCard(userState = HomeViewModel.uiState)
 
-                    Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        when (val state = HomeViewModel.uiState) {
-                            is UserUiState.Loading -> {
-                                Text(
-                                    "Carregando...",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color(0xFF9E9E9E)
-                                )
-                            }
-                            is UserUiState.Success -> {
-                                Text(
-                                    text = state.user.name,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 17.sp,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                                state.user.email?.let {
-                                    Text(
-                                        text = it,
-                                        fontSize = 13.sp,
-                                        color = Color(0xFF9E9E9E)
-                                    )
-                                }
-                            }
-                            is UserUiState.Error -> {
-                                Text(
-                                    "Erro: ${state.message}",
-                                    color = MaterialTheme.colorScheme.error,
-                                    fontSize = 13.sp
-                                )
-                            }
-                        }
-                    }
+            PrinterStatusCard(isConnected = isConnected)
 
-                    Surface(
-                        shape = RoundedCornerShape(20.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                    ) {
-                        Text(
-                            text = "Caixa",
-                            color = Color.White,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(28.dp))
-
-            // ── Chat Card ────────────────────────────────────────────────────  👈 novo
+            // ── Chat Card ────────────────────────────────────────────────────  👈 novo (em pausa, retomar quando necessário)
 //            Card(
 //                shape = RoundedCornerShape(20.dp),
 //                colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -316,194 +234,341 @@ fun ProfileScreen(
 //            }
             // ── fim Chat Card ────────────────────────────────────────────────
 
-            Spacer(modifier = Modifier.padding(20.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // ── Close shift button ───────────────────────────────────────────
-            OutlinedButton(
-                onClick = { showCloseShiftDialog = true },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp)) // ✅ recorta antes de pintar
-                    .background(brush = SunmiGradient),
-                shape = RoundedCornerShape(10.dp),
-                border = null,
-                elevation = ButtonDefaults.buttonElevation(0.dp), // ✅ evita sombra azulada por cima do gradiente
-                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
-            ) {
-                Icon(
-                    Icons.Outlined.LockClock,
-                    contentDescription = null,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Fechar o Turno", fontWeight = FontWeight.Medium)
-            }
+            SectionLabel("Turno")
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
-            // ── Logout button ────────────────────────────────────────────────
-            Button(
-                onClick = { AuthviewModel.logout() },
-                enabled = !isLoading,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Red,
-                    contentColor = Color.White
-                )
-            ) {
-                if (isLoading) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = MaterialTheme.colorScheme.error,
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(
-                        Icons.Outlined.Logout,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Sair", fontWeight = FontWeight.SemiBold)
-                }
-            }
+            PrimaryGradientButton(
+                text = "Fechar o Turno",
+                icon = Icons.Outlined.LockClock,
+                onClick = { showCloseShiftDialog = true }
+            )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            // ── Printer status pill ──────────────────────────────────────────
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isConnected) Color(0xFF4CAF50) else Color(0xFFE53935)
-                        )
-                )
-                Spacer(modifier = Modifier.width(6.dp))
-                Text(
-                    text = "Impressora: $connectionStatus",
-                    fontSize = 13.sp,
-                    color = if (isConnected) Color(0xFF4CAF50) else Color(0xFFE53935)
-                )
-            }
+            SectionLabel("Sessão")
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            LogoutButton(
+                isLoading = isLoading,
+                onClick = { AuthviewModel.logout() }
+            )
 
             Spacer(modifier = Modifier.height(32.dp))
         }
 
-        // ── Dialog de confirmação ────────────────────────────────────────────
         if (showCloseShiftDialog) {
-            AlertDialog(
-                onDismissRequest = { showCloseShiftDialog = false },
-                shape = RoundedCornerShape(20.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                icon = {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFFFFF3E0)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Outlined.Warning,
-                            contentDescription = null,
-                            tint = Color(0xFFE65100),
-                            modifier = Modifier.size(28.dp)
+            CloseShiftDialog(
+                operatorName = shift?.userName,
+                initialAmount = shift?.initialAmount.toKwanza(),
+                totalSales = total.toKwanza(),
+                onDismiss = { showCloseShiftDialog = false },
+                onConfirm = {
+                    showCloseShiftDialog = false
+                    userId?.let {
+                        shiftViewModel.CloseShift(
+                            initial_amount = shift?.initialAmount,
+                            total,
+                            it
                         )
                     }
-                },
-                title = {
-                    Text(
-                        text = "Fechar o turno?",
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 17.sp,
-                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                    )
-                },
-                text = {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        Text(
-                            text = "Esta ação irá encerrar o turno actual e registar o total de vendas.",
-                            fontSize = 13.sp,
-                            color = Color(0xFF9E9E9E),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-                        )
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(12.dp)) {
-                                ShiftSummaryRow(label = "Operador", value = shift?.userName ?: "—")
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 6.dp),
-                                    thickness = 0.5.dp,
-                                    color = Color(0x20000000)
-                                )
-                                ShiftSummaryRow(
-                                    label = "Fundo inicial",
-                                    value = shift?.initialAmount.toKwanza()
-                                )
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 6.dp),
-                                    thickness = 0.5.dp,
-                                    color = Color(0x20000000)
-                                )
-                                ShiftSummaryRow(
-                                    label = "Total de vendas",
-                                    value = "${total.toKwanza()} ",
-                                    valueColor = Color(0xFF2E7D32)
-                                )
-                            }
-                        }
-                    }
-                },
-                dismissButton = {
-                    OutlinedButton(
-                        onClick = { showCloseShiftDialog = false },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
-                    ) {
-                        Text("Cancelar")
-                    }
-                },
-                confirmButton = {
-                    Button(
-                        onClick = {
-                            showCloseShiftDialog = false
-                            userId?.let {
-                                shiftViewModel.CloseShift(
-                                    initial_amount = shift?.initialAmount,
-                                    total,
-                                    it
-                                )
-                            }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp)) // ✅ recorta antes de pintar
-                            .background(brush = SunmiGradient),
-                        shape = RoundedCornerShape(14.dp),
-                        elevation = ButtonDefaults.buttonElevation(0.dp), // ✅ evita sombra azulada por cima do gradiente
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
-
-                    ) {
-                        Text("Fechar turno", fontWeight = FontWeight.SemiBold)
-                    }
-                },
+                }
             )
         }
     }
+}
+
+@Composable
+private fun ProfileHeaderCard(userState: UserUiState) {
+    ElevatedCard(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.elevatedCardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(18.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val initials = (userState as? UserUiState.Success)?.user?.name
+                ?.trim()
+                ?.split(" ")
+                ?.filter { it.isNotBlank() }
+                ?.take(2)
+                ?.joinToString("") { it.first().uppercase() }
+                ?: "?"
+
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary,
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+                            )
+                        )
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = initials,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp
+                )
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                when (userState) {
+                    is UserUiState.Loading -> {
+                        Text(
+                            "Carregando...",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    is UserUiState.Success -> {
+                        Text(
+                            text = userState.user.name,
+                            fontWeight = FontWeight.SemiBold,
+                            fontSize = 17.sp,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        userState.user.email?.let {
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = it,
+                                fontSize = 13.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    is UserUiState.Error -> {
+                        Text(
+                            "Erro: ${userState.message}",
+                            color = MaterialTheme.colorScheme.error,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Text(
+                    text = "Caixa",
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 5.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PrinterStatusCard(isConnected: Boolean) {
+    val statusColor = if (isConnected) StatusOnline else StatusOffline
+    val statusLabel = if (isConnected) "Impressora conectada" else "Impressora desconectada"
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = statusColor.copy(alpha = 0.08f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(statusColor)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = statusLabel,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = statusColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text.uppercase(),
+        fontSize = 11.sp,
+        fontWeight = FontWeight.SemiBold,
+        letterSpacing = 1.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+@Composable
+private fun PrimaryGradientButton(
+    text: String,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit
+) {
+    Button(
+        onClick = onClick,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(brush = SunmiGradient),
+        shape = RoundedCornerShape(14.dp),
+        elevation = ButtonDefaults.buttonElevation(0.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
+    ) {
+        Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+    }
+}
+
+@Composable
+private fun LogoutButton(isLoading: Boolean, onClick: () -> Unit) {
+    OutlinedButton(
+        onClick = onClick,
+        enabled = !isLoading,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+        border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.4f))
+    ) {
+        if (isLoading) {
+            CircularProgressIndicator(
+                modifier = Modifier.size(20.dp),
+                color = MaterialTheme.colorScheme.error,
+                strokeWidth = 2.dp
+            )
+        } else {
+            Icon(Icons.Outlined.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("Sair", fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
+
+@Composable
+private fun CloseShiftDialog(
+    operatorName: String?,
+    initialAmount: String,
+    totalSales: String,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(20.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        icon = {
+            Box(
+                modifier = Modifier
+                    .size(56.dp)
+                    .clip(CircleShape)
+                    .background(WarningContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Warning,
+                    contentDescription = null,
+                    tint = WarningOnContainer,
+                    modifier = Modifier.size(28.dp)
+                )
+            }
+        },
+        title = {
+            Text(
+                text = "Fechar o turno?",
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 17.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.fillMaxWidth()
+            )
+        },
+        text = {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                Text(
+                    text = "Esta ação irá encerrar o turno actual e registar o total de vendas.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        ShiftSummaryRow(label = "Operador", value = operatorName ?: "—")
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        ShiftSummaryRow(label = "Fundo inicial", value = initialAmount)
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 8.dp),
+                            thickness = 0.5.dp,
+                            color = MaterialTheme.colorScheme.outlineVariant
+                        )
+                        ShiftSummaryRow(
+                            label = "Total de vendas",
+                            value = totalSales,
+                            valueColor = StatusOnline
+                        )
+                    }
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Cancelar")
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = onConfirm,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(brush = SunmiGradient),
+                shape = RoundedCornerShape(14.dp),
+                elevation = ButtonDefaults.buttonElevation(0.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Transparent)
+            ) {
+                Text("Fechar turno", fontWeight = FontWeight.SemiBold)
+            }
+        }
+    )
 }
 
 @Composable
@@ -516,12 +581,12 @@ private fun ShiftSummaryRow(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        Text(label, fontSize = 13.sp, color = Color(0xFF9E9E9E))
+        Text(label, fontSize = 13.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
         Text(
             text = value,
             fontSize = 13.sp,
             fontWeight = FontWeight.Medium,
-            color = if (valueColor == Color.Unspecified) Color.Unspecified else valueColor
+            color = if (valueColor == Color.Unspecified) MaterialTheme.colorScheme.onSurface else valueColor
         )
     }
 }

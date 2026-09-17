@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.austin.kambapos.data.local.entity.CartItemWithProduct
+import com.austin.kambapos.data.local.entity.OrderWithItems
 import com.austin.kambapos.data.repository.OrdersRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -37,9 +38,10 @@ class OrderViewModel @Inject constructor(
 
     private var openOrderJob: Job? = null
     private var observeOrderJob: Job? = null
-    
-    // Lista para gerenciar múltiplos pedidos de abertura simultâneos ou sequenciais rápidos
+
     private val pendingCallbacks = mutableListOf<(Int) -> Unit>()
+
+    private val _userId = MutableStateFlow<Int?>(null)
 
     init {
         syncOrders()
@@ -51,10 +53,10 @@ class OrderViewModel @Inject constructor(
         }
     }
 
-    /**
-     * Abre uma venda e executa o callback [onComplete] com o ID da venda.
-     * Se já houver uma venda aberta, executa o callback imediatamente.
-     */
+    fun setUserId(id: Int) {
+        _userId.value = id
+    }
+
     fun openOrder(shiftId: Int, onComplete: ((Int) -> Unit)? = null) {
         val currentId = _orderId.value
         if (currentId != null) {
@@ -62,10 +64,8 @@ class OrderViewModel @Inject constructor(
             return
         }
 
-        // Adiciona o callback à lista de espera
         onComplete?.let { pendingCallbacks.add(it) }
 
-        // Se já houver um job em andamento, não iniciamos outro
         if (openOrderJob?.isActive == true) return
 
         openOrderJob = viewModelScope.launch {
@@ -74,8 +74,7 @@ class OrderViewModel @Inject constructor(
                 val newId = response.id
                 _orderId.value = newId
                 Log.d("ORDER", "Venda iniciada com ID: $newId")
-                
-                // Executa e limpa os callbacks pendentes
+
                 val callbacks = pendingCallbacks.toList()
                 pendingCallbacks.clear()
                 callbacks.forEach { it(newId) }
@@ -87,12 +86,7 @@ class OrderViewModel @Inject constructor(
         }
     }
 
-    private val _userId = MutableStateFlow<Int?>(null)
-
-    fun setUserId(id: Int) {
-        _userId.value = id
-    }
-
+    // Lista simples (para a LazyColumn de cards)
     val orders = _userId
         .filterNotNull()
         .flatMapLatest { userId ->
@@ -104,7 +98,28 @@ class OrderViewModel @Inject constructor(
             emptyList()
         )
 
-    val totalSales = orders
+    // Lista com itens (para o modal de detalhes) — lida direto do Room, funciona offline
+    val ordersWithItems: StateFlow<List<OrderWithItems>> = _userId
+        .filterNotNull()
+        .flatMapLatest { userId ->
+            ordersRepository.observeOrdersWithItems(userId)
+        }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
+    // Só vendas fechadas contam como "venda" nas stats
+    private val closedOrders = orders
+        .map { list -> list.filter { it.status == "closed" } }
+        .stateIn(
+            viewModelScope,
+            SharingStarted.WhileSubscribed(5000),
+            emptyList()
+        )
+
+    val totalSales = closedOrders
         .map { list -> list.sumOf { it.total } }
         .stateIn(
             viewModelScope,
@@ -112,7 +127,7 @@ class OrderViewModel @Inject constructor(
             0.0
         )
 
-    val ordersCount = orders
+    val ordersCount = closedOrders
         .map { it.size }
         .stateIn(
             viewModelScope,
@@ -135,7 +150,7 @@ class OrderViewModel @Inject constructor(
             )
             result.onSuccess {
                 _closeOrderState.value = it
-                _orderId.value = null // Limpa para a próxima venda
+                _orderId.value = null
             }.onFailure { error ->
                 _closeOrderState.value = error.message ?: "Erro ao fechar venda"
                 Log.e("OrderViewModel", "Erro ao fechar venda", error)
@@ -147,7 +162,6 @@ class OrderViewModel @Inject constructor(
         _closeOrderState.value = null
     }
 
-    // PDV: Busca a venda aberta vinculada ao turno
     fun observeCurrentOrder(shiftId: Int) {
         observeOrderJob?.cancel()
         observeOrderJob = viewModelScope.launch {
@@ -156,7 +170,7 @@ class OrderViewModel @Inject constructor(
                 if (activeOrder != null) {
                     _orderId.value = activeOrder.id
                 } else if (_orderId.value != null && allOrders.none { it.id == _orderId.value && it.status == "open" }) {
-                     _orderId.value = null
+                    _orderId.value = null
                 }
             }
         }

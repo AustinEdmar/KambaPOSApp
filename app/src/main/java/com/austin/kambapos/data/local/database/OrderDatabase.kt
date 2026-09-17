@@ -6,12 +6,13 @@ import com.austin.kambapos.data.local.dao.CartDao
 import com.austin.kambapos.data.local.dao.OrderDao
 import com.austin.kambapos.data.local.entity.CartItemEntity
 import com.austin.kambapos.data.local.entity.OrderEntity
+import com.austin.kambapos.data.local.entity.OrderItemEntity
 import com.austin.kambapos.data.local.entity.ProductEntity
 
 
 @Database(
-    entities = [OrderEntity::class, CartItemEntity::class, ProductEntity::class],
-    version = 4,
+    entities = [OrderEntity::class, OrderItemEntity::class, CartItemEntity::class, ProductEntity::class],
+    version = 5,
     exportSchema = false
 )
 abstract class OrderDatabase : RoomDatabase() {

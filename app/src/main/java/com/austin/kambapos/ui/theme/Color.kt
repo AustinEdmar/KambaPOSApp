@@ -22,11 +22,8 @@ val SunmiGradientHorizontal = Brush.horizontalGradient(
     )
 )
 
-val OrangePrimary = Color(0xFFEFD7C5) // Laranja
-val OrangeOnPrimary = Color(0xFFFFFFFF) // Texto/ícone em cima do laranja
+val CardBg = Color(0xFFFFFFFF)
+val TextMain = Color(0xFF1A1A2E)
+val TextMuted = Color(0xFF9E9E9E)
+val DividerColor = Color(0xFFEEEEEE)
 
-val yellow = Color(0xFFFFC107) // Laranja claro
-
-val green = Color(0xFF8BC34A) // Verde
-
-val red = Color(0xFFF44336) // Vermelho

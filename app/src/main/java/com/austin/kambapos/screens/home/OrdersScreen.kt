@@ -1,5 +1,7 @@
 package com.austin.kambapos.screens.profile
 
+import android.util.Log
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -15,10 +17,15 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
 import com.austin.kambapos.data.local.entity.OrderEntity
+import com.austin.kambapos.data.local.entity.OrderWithItems
 import com.austin.kambapos.data.model.UiStates.AuthUiState
 import com.austin.kambapos.data.model.UiStates.UserUiState
 import com.austin.kambapos.navigation.Screens
+import com.austin.kambapos.screens.home.components.Orders.OrderCard
+import com.austin.kambapos.screens.home.components.Orders.OrderDetailsDialog
+import com.austin.kambapos.screens.home.components.Orders.SummaryRow
 import com.austin.kambapos.screens.home.components.ScreenScaffold
+
 import com.austin.kambapos.utils.toKwanza
 import com.austin.kambapos.viewmodel.AuthViewModel
 import com.austin.kambapos.viewmodel.HomeViewModel
@@ -26,33 +33,8 @@ import com.austin.kambapos.viewmodel.OrderViewModel
 import com.austin.kambapos.viewmodel.ShiftViewModel
 
 // ── Palette ──────────────────────────────────────────────────────────────────
-private val Blue      = Color(0xFF1565C0)
-private val Green     = Color(0xFF43A047)
-private val Orange    = Color(0xFFEF6C00)
-private val Purple    = Color(0xFF8E24AA)
-private val PageBg    = Color(0xFFF5F6FA)
-private val CardBg    = Color(0xFFFFFFFF)
-private val TextMain  = Color(0xFF1A1A2E)
-private val TextMuted = Color(0xFF9E9E9E)
-private val Divider   = Color(0xFFEEEEEE)
 
-private val FILTERS = listOf("All Order", "New", "In Progress", "Ready", "Paid")
 
-private fun statusColor(s: String) = when (s.trim().lowercase()) {
-    "new"         -> Orange
-    "in_progress" -> Blue
-    "ready"       -> Purple
-    "paid"        -> Green
-    else          -> TextMuted
-}
-
-private fun statusLabel(s: String) = when (s.trim().lowercase()) {
-    "new"         -> "New Order"
-    "in_progress" -> "In Progress"
-    "ready"       -> "Ready"
-    "paid"        -> "Paid"
-    else          -> s.replaceFirstChar { it.uppercase() }
-}
 
 // ── Screen ────────────────────────────────────────────────────────────────────
 @Composable
@@ -86,11 +68,18 @@ fun OrdersScreen(
     LaunchedEffect(userState) {
         if (userState is UserUiState.Success) {
             orderViewModel.setUserId(userState.user.id)
+            Log.d("ORDerid", "User ID: ${userState.user.id}")
         }
     }
 
-    var selectedFilter by remember { mutableStateOf("All Order") }
 
+
+    val ordersDetails by orderViewModel.ordersWithItems.collectAsState()
+
+
+
+    var selectedOrder by remember { mutableStateOf<OrderWithItems?>(null) }
+    var selectedFilter by remember { mutableStateOf("All Order") }
     val filtered = remember(orders, selectedFilter) {
         if (selectedFilter == "All Order") orders
         else orders.filter {
@@ -102,21 +91,14 @@ fun OrdersScreen(
         title = "Caixa: ${shift?.userName ?: "Nenhum"}",
         amountTitle = "Fundo: ${shift?.initialAmount.toKwanza()}",
         showMenu       = true,
-        showCart       = true,
+        showCart       = false,
         showProfile    = false,
         onProfileClick = onProfileClick,
         navController  = navController,
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
+        Column(modifier = Modifier.fillMaxSize()) {
 
-        ) {
-
-
-
-
-            // ── Stats Card ───────────────────────────────────────────────
+            // ── Stats Card (igual) ───────────────────────────────────
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
@@ -154,18 +136,14 @@ fun OrdersScreen(
 
             Spacer(Modifier.height(12.dp))
 
-            // ── Result count ──────────────────────────────────────────
             Text(
                 text       = "${filtered.size} Resultado(s)",
-                modifier   = Modifier.padding(horizontal = 28.dp,  vertical = 2.dp),
+                modifier   = Modifier.padding(horizontal = 28.dp, vertical = 2.dp),
                 fontSize   = 13.sp,
                 color      = MaterialTheme.colorScheme.primary,
                 fontWeight = FontWeight.Medium
             )
 
-           // Spacer(Modifier.height(2.dp))
-
-            // ── List / Empty state ────────────────────────────────────
             if (filtered.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text("Nenhum pedido encontrado", color = MaterialTheme.colorScheme.primary, fontSize = 15.sp)
@@ -177,96 +155,35 @@ fun OrdersScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     items(filtered, key = { it.id }) { order ->
-                        OrderCard(order)
+                        OrderCard(
+                            order = order,
+                            onClick = {
+                                selectedOrder = ordersDetails.find { it.order.id == order.id }
+                            }
+                        )
                     }
                     item { Spacer(Modifier.height(16.dp)) }
                 }
             }
         }
     }
-}
 
-
-
-// ── Order Card ────────────────────────────────────────────────────────────────
-@Composable
-private fun OrderCard(order: OrderEntity) {
-    Card(
-        modifier  = Modifier.fillMaxWidth(),
-        shape     = RoundedCornerShape(16.dp),
-        colors    = CardDefaults.cardColors(containerColor = CardBg),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-    ) {
-        Column(Modifier.padding(16.dp)) {
-
-            Row(
-                Modifier.fillMaxWidth(),
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text       = "Pedido ID #${order.id.toString().uppercase()}",
-                    fontSize   = 15.sp,
-                    fontWeight = FontWeight.Bold,
-                    color      = MaterialTheme.colorScheme.primary
-                )
-              //  StatusBadge(order.status)
-            }
-
-            Spacer(Modifier.height(4.dp))
-
-            Row(
-                verticalAlignment     = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Text(
-                    text     = order.created_at?.take(16)?.replace("T", "  ") ?: "–",
-                    fontSize = 12.sp,
-                    color    = TextMuted
-                )
-                Text("|", fontSize = 12.sp, color = TextMuted)
-
-            }
-
-            Spacer(Modifier.height(12.dp))
-            HorizontalDivider(color = Divider, thickness = 0.8.dp)
-            Spacer(Modifier.height(10.dp))
-       //"${shift?.initialAmount.toKwanza()} "
-            SummaryRow("Subtotal",         "${order.subtotal.toKwanza()} ")
-            SummaryRow("Total",            "${order.total.toKwanza()} ")
-           // SummaryRow("Método Pagamento", statusLabel(order.status))
-        }
-    }
-}
-
-// ── Status Badge ──────────────────────────────────────────────────────────────
-@Composable
-private fun StatusBadge(status: String) {
-    val color = statusColor(status)
-    Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primary) {
-        Text(
-            text       = statusLabel(status),
-            modifier   = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-            fontSize   = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            color      = Color.White
+    selectedOrder?.let { orderWithItems ->
+        OrderDetailsDialog(
+            orderWithItems = orderWithItems,
+            onDismiss = { selectedOrder = null }
         )
     }
+
 }
 
-// ── Summary Row ───────────────────────────────────────────────────────────────
-@Composable
-private fun SummaryRow(label: String, value: String) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .padding(vertical = 2.dp),
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Text(label, fontSize = 13.sp, color = TextMuted)
-        Text(value, fontSize = 13.sp, color = TextMain, fontWeight = FontWeight.Medium)
-    }
-}
+
+
+
+
+
+// ── Summary StateItem ───────────────────────────────────────────────────────────────
+
 
 
 @Composable

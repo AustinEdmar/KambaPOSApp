@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material.icons.filled.ShoppingCart
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -136,14 +137,14 @@ fun AppDrawer(
         NavigationDrawerItem(
             icon = {
                 Icon(
-                    imageVector = Icons.Default.ShoppingCart,
+                    imageVector = Icons.Default.ReceiptLong,
                     contentDescription = "Pedidos",
                     tint = if (currentRoute == "orders") SunmiOrange else MaterialTheme.colorScheme.onSurfaceVariant
                 )
             },
             label = {
                 Text(
-                    text = "Pedidos",
+                    text = "Minhas vendas",
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = if (currentRoute == "orders") FontWeight.SemiBold else FontWeight.Normal
                 )

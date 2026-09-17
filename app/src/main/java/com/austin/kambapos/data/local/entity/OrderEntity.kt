@@ -10,6 +10,8 @@ data class OrderEntity(
     val shift_id: Int,
     val status: String,
     val subtotal: Double,
+    val iva: Double?,
+    val discount: Double?,
     val total: Double,
     val opened_at: String?,
     val updated_at: String?,
