@@ -36,8 +36,8 @@ interface OrderDao {
     @Query("SELECT * FROM orders WHERE status = 'open' LIMIT 1")
     fun observeOrders(): Flow<List<OrderEntity>>
 
-    @Query("SELECT * FROM orders WHERE user_id = :user_id")
-    fun getOrdersByUser(user_id: Int): Flow<List<OrderEntity>>
+    @Query("SELECT * FROM orders WHERE user_id = :user_id AND shift_id = :shift_id")
+    fun getOrdersByUser(user_id: Int, shift_id: Int): Flow<List<OrderEntity>>
 
     @Query("SELECT * FROM orders")
     suspend fun getOrdersOnce(): List<OrderEntity>

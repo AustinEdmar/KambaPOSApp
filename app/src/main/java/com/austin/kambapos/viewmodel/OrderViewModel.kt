@@ -12,12 +12,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import javax.inject.Inject
 import kotlinx.coroutines.launch
+import kotlin.collections.emptyList
 
 @HiltViewModel
 class OrderViewModel @Inject constructor(
@@ -42,6 +44,7 @@ class OrderViewModel @Inject constructor(
     private val pendingCallbacks = mutableListOf<(Int) -> Unit>()
 
     private val _userId = MutableStateFlow<Int?>(null)
+    private val _shiftId = MutableStateFlow<Int?>(null)
 
     init {
         syncOrders()
@@ -57,8 +60,11 @@ class OrderViewModel @Inject constructor(
         _userId.value = id
     }
 
+
+
     fun openOrder(shiftId: Int, onComplete: ((Int) -> Unit)? = null) {
         val currentId = _orderId.value
+        _shiftId.value = shiftId   // adicionar
         if (currentId != null) {
             onComplete?.invoke(currentId)
             return
@@ -86,11 +92,17 @@ class OrderViewModel @Inject constructor(
         }
     }
 
+    fun setShiftId(id: Int) {
+        _shiftId.value = id
+    }
+
     // Lista simples (para a LazyColumn de cards)
-    val orders = _userId
-        .filterNotNull()
-        .flatMapLatest { userId ->
-            ordersRepository.getOrdersByUser(userId)
+    val orders = combine(
+        _userId.filterNotNull(),
+        _shiftId.filterNotNull()
+    ) { userId, shiftId -> userId to shiftId }
+        .flatMapLatest { (userId, shiftId) ->
+            ordersRepository.getOrdersByUser(userId, shiftId)
         }
         .stateIn(
             viewModelScope,
@@ -163,6 +175,7 @@ class OrderViewModel @Inject constructor(
     }
 
     fun observeCurrentOrder(shiftId: Int) {
+        _shiftId.value = shiftId   // adicionar
         observeOrderJob?.cancel()
         observeOrderJob = viewModelScope.launch {
             orders.collect { allOrders ->

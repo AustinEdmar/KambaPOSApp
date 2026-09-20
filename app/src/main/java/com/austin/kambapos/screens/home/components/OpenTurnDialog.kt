@@ -49,6 +49,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.austin.kambapos.data.model.UiStates.ShitftUiState
 import com.austin.kambapos.ui.theme.SunmiGradient
+import com.austin.kambapos.utils.KwanzaVisualTransformation
 import com.austin.kambapos.utils.formatToKwanza
 import com.austin.kambapos.utils.parseKwanzaToDouble
 import com.austin.kambapos.viewmodel.AuthViewModel
@@ -64,9 +65,7 @@ fun OpenTurnDialog(
     AuthviewModel: AuthViewModel = hiltViewModel(),
     shiftViewModel: ShiftViewModel = hiltViewModel()
 ) {
-    var initial_amount by remember { mutableStateOf("") }
-    val initial_amountShiftFormated = formatToKwanza(initial_amount)
-
+    var initialAmountDigits by remember { mutableStateOf("") }
     val state = shiftViewModel.shitftUiState
 
     // 👇 COLOQUE AQUI
@@ -171,12 +170,11 @@ fun OpenTurnDialog(
                     )
 
                     OutlinedTextField(
-                        value = initial_amountShiftFormated,
+                        value = initialAmountDigits,
                         onValueChange = { input ->
-                            // Guarda apenas os dígitos
-                            initial_amount = input.filter { it.isDigit() }
+                            initialAmountDigits = input.filter { it.isDigit() }
                         },
-
+                        visualTransformation = KwanzaVisualTransformation(),
                         placeholder = {
                             Text(
                                 text = "Insira o fundo de maneio",
@@ -205,9 +203,8 @@ fun OpenTurnDialog(
 
                     Button(
                         onClick = {
-                            val valor = parseKwanzaToDouble(initial_amountShiftFormated)
+                            val valor = parseKwanzaToDouble(formatToKwanza(initialAmountDigits))
                             onDone(valor.toString())
-                           // onDismiss()
                         },
                         modifier = Modifier
                             .fillMaxWidth()

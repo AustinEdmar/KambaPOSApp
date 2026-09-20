@@ -39,7 +39,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import com.austin.kambapos.data.model.CartItem
+import com.austin.kambapos.data.model.CartItemDTO
 import com.austin.kambapos.navigation.Screens
 import androidx.compose.ui.platform.LocalContext
 import com.austin.kambapos.core.lib.SunmiPrinter
@@ -167,7 +167,7 @@ fun CartScreen(
                 items(cartitems, key = { it.cartItem.id }) { cartItemWithProduct ->
                     cartItemWithProduct.product?.let { product ->
                         OrderItemCard(
-                            item = CartItem(
+                            item = CartItemDTO(
                                 id        = cartItemWithProduct.cartItem.id,
                                 name      = product.name,
                                 stockQty  = product.stock,
@@ -240,7 +240,7 @@ fun CartScreen(
                                 else -> {
                                     val items = cartitems.mapNotNull { cartItemWithProduct ->
                                         cartItemWithProduct.product?.let { product ->
-                                            CartItem(
+                                            CartItemDTO(
                                                 id = cartItemWithProduct.cartItem.id,
                                                 name = product.name,
                                                 stockQty = product.stock,
@@ -296,7 +296,7 @@ fun CartScreen(
 
                             val receipt = ReceiptModel(
                                 items = cartitems.mapNotNull { it.product?.let { p ->
-                                    CartItem(
+                                    CartItemDTO(
                                         id = it.cartItem.id,
                                         name = p.name,
                                         stockQty = p.stock,

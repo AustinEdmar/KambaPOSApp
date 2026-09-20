@@ -70,6 +70,7 @@ import com.austin.kambapos.viewmodel.HomeViewModel
 import com.austin.kambapos.viewmodel.OrderViewModel
 import com.austin.kambapos.viewmodel.ProductViewModel
 import com.austin.kambapos.viewmodel.ShiftViewModel
+import com.austin.kambapos.viewmodel.UsersViewModel
 import kotlin.math.roundToInt
 
 @Composable
@@ -83,6 +84,7 @@ fun ProductsScreen(
     cartViewModel: CartViewModel = hiltViewModel(),
     HomeViewModel: HomeViewModel = hiltViewModel(),
     AuthviewModel: AuthViewModel = hiltViewModel(),
+    usersViewModel: UsersViewModel = hiltViewModel(), // ← adiciona
 ) {
     var showAbrirTurnoDialog by remember { mutableStateOf(true) }
     val userState = HomeViewModel.uiState

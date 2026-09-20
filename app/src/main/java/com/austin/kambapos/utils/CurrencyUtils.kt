@@ -1,5 +1,9 @@
 package com.austin.kambapos.utils
 
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.input.OffsetMapping
+import androidx.compose.ui.text.input.TransformedText
+import androidx.compose.ui.text.input.VisualTransformation
 // CurrencyUtils.kt
 
 // 🔹 para input (MANTER)
@@ -33,4 +37,39 @@ fun Double?.toKwanza(): String {
 
     val formatted = "%,d".format(intPart).replace(',', '.')
     return "$formatted,${"%02d".format(decPart)} Kz"
+}
+
+
+class KwanzaVisualTransformation : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val digits = text.text
+        val formatted = formatToKwanza(digits)
+
+        if (digits.isEmpty()) {
+            return TransformedText(AnnotatedString(""), OffsetMapping.Identity)
+        }
+
+        val offsetMapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int {
+                var digitCount = 0
+                var transformedOffset = 0
+                for (char in formatted) {
+                    if (digitCount == offset) break
+                    if (char.isDigit()) digitCount++
+                    transformedOffset++
+                }
+                return transformedOffset.coerceAtMost(formatted.length)
+            }
+
+            override fun transformedToOriginal(offset: Int): Int {
+                var digitCount = 0
+                for (i in 0 until offset.coerceAtMost(formatted.length)) {
+                    if (formatted[i].isDigit()) digitCount++
+                }
+                return digitCount.coerceAtMost(digits.length)
+            }
+        }
+
+        return TransformedText(AnnotatedString(formatted), offsetMapping)
+    }
 }

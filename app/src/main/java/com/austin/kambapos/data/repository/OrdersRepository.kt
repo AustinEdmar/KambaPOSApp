@@ -28,8 +28,11 @@ class OrdersRepository @Inject constructor (
         return response
     }
 
-    fun getOrdersByUser(user_id: Int): Flow<List<OrderEntity>> {
-        return orderDao.getOrdersByUser(user_id)
+    fun getOrdersByUser(
+        userId: Int,
+        shiftId: Int
+    ): Flow<List<OrderEntity>> {
+        return orderDao.getOrdersByUser(userId, shiftId)
     }
 
     suspend fun closeOrder(
@@ -56,7 +59,7 @@ class OrdersRepository @Inject constructor (
             if (response.isSuccessful) {
                 val message = response.body()?.message ?: "Pedido fechado"
                 cartDao.clearCart(orderId)
-             //   orderDao.deleteOrderById(orderId)
+                orderDao.deleteOrderById(orderId)
                 Result.success(message)
             } else {
                 val errorMsg = response.errorBody()?.string() ?: "Erro ao fechar pedido"

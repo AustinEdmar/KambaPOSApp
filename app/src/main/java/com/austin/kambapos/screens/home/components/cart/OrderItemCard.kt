@@ -26,11 +26,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.austin.kambapos.data.api.CoreUrl
-import com.austin.kambapos.data.model.CartItem
+import com.austin.kambapos.data.model.CartItemDTO
 
 @Composable
 fun OrderItemCard(
-    item: CartItem,
+    item: CartItemDTO,
     onIncrease: () -> Unit,
     onDecrease: () -> Unit,
     increaseEnabled: Boolean,

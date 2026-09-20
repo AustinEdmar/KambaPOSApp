@@ -44,7 +44,12 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.austin.kambapos.ui.theme.SunmiGradient
+import com.austin.kambapos.utils.KwanzaVisualTransformation
+import com.austin.kambapos.utils.formatToKwanza
+import com.austin.kambapos.utils.parseKwanzaToDouble
 import com.austin.kambapos.utils.toKwanza
+import java.text.NumberFormat
+import java.util.Locale
 
 @Composable
 fun CashPaymentDialog(
@@ -52,10 +57,13 @@ fun CashPaymentDialog(
     onDismiss: () -> Unit,
     onConfirm: (Double, Double) -> Unit
 ) {
-    var receivedText by remember { mutableStateOf("") }
+    var receivedDigits by remember { mutableStateOf("") }
 
-    val received = receivedText.toDoubleOrNull() ?: 0.0
+    val received = parseKwanzaToDouble(formatToKwanza(receivedDigits))
     val change = (received - total).coerceAtLeast(0.0)
+
+
+
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -233,23 +241,18 @@ fun CashPaymentDialog(
                     )
 
                     OutlinedTextField(
-                        value = receivedText,
-                        onValueChange = {
-                            receivedText = it
+                        value = receivedDigits,
+                        onValueChange = { input ->
+                            receivedDigits = input.filter { it.isDigit() }
                         },
+                        visualTransformation = KwanzaVisualTransformation(),
                         placeholder = {
-                            Text(
-                                text = "Insira o valor recebido",
-                                color = Color(0xFFAAAAAA),
-                                fontSize = 14.sp
-                            )
+                            Text(text = "0,00 Kz", color = Color(0xFFAAAAAA), fontSize = 14.sp)
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp),
                         singleLine = true,
-                        keyboardOptions = KeyboardOptions(
-                            keyboardType = KeyboardType.Number
-                        ),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = Color(0xFFFFC107),
                             unfocusedBorderColor = Color(0xFFDDDDDD),

@@ -7,9 +7,11 @@ import com.austin.kambapos.data.local.dao.CategoryDao
 import com.austin.kambapos.data.local.dao.OrderDao
 import com.austin.kambapos.data.local.dao.ProductDao
 import com.austin.kambapos.data.local.dao.ShiftDao
+import com.austin.kambapos.data.local.dao.UsersDao
 import com.austin.kambapos.data.local.database.OrderDatabase
 import com.austin.kambapos.data.local.database.ProductDatabase
 import com.austin.kambapos.data.local.database.ShiftDatabase
+import com.austin.kambapos.data.local.database.UsersDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -20,6 +22,25 @@ import kotlin.jvm.java
 @Module
 @InstallIn(SingletonComponent::class)
 object DatabaseModule {
+
+
+    @Provides
+    @Singleton
+    fun provideUsersDatabase(context: Application) : UsersDatabase {
+        return Room.databaseBuilder(
+            context,
+            UsersDatabase::class.java,
+            "users_db"
+        )
+            .fallbackToDestructiveMigration()
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideUsersDao(db: UsersDatabase): UsersDao {
+        return db.usersDao()
+    }
 
 
     @Provides
@@ -93,5 +114,8 @@ object DatabaseModule {
     fun provideCartDao(db: OrderDatabase): CartDao {
         return db.CartDao()
     }
+
+
+
 
 }

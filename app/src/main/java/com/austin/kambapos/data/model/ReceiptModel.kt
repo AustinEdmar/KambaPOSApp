@@ -1,7 +1,7 @@
 package com.austin.kambapos.data.model
 
 data class ReceiptModel(
-    val items: List<CartItem>,
+    val items: List<CartItemDTO>,
     val subtotal: Double,
     val tax: Double,
     val total: Double,

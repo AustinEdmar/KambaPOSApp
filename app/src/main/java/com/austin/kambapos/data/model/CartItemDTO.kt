@@ -1,6 +1,6 @@
 package com.austin.kambapos.data.model
 
-data class CartItem(
+data class CartItemDTO(
     val id: Int,
     val name: String,
     val stockLabel: String = "Stock:",

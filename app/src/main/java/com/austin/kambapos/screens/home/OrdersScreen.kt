@@ -68,9 +68,15 @@ fun OrdersScreen(
     LaunchedEffect(userState) {
         if (userState is UserUiState.Success) {
             orderViewModel.setUserId(userState.user.id)
-            Log.d("ORDerid", "User ID: ${userState.user.id}")
+            Log.d("ORDerid", "User ID: ${userState}")
         }
     }
+
+    LaunchedEffect(shift) {
+        shift?.let { orderViewModel.setShiftId(it.id) }
+    }
+
+
 
 
 

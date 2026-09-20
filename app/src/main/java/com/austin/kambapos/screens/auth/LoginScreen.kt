@@ -243,7 +243,7 @@ fun LoginScreen(
                 ) + fadeIn(animationSpec = tween(500))
             ) {
                 Text(
-                    text = "Acesse sua conta",
+                    text = "Acesse a conta",
                     fontSize = 28.sp,
                     fontWeight = FontWeight.Bold,
                     color = Color.White,
@@ -262,7 +262,7 @@ fun LoginScreen(
                 ) + fadeIn(animationSpec = tween(500, delayMillis = 100))
             ) {
                 Text(
-                    text = "Insira suas credenciais para acessar sua conta",
+                    text = "Insira as credenciais de acesso a conta",
                     fontSize = 14.sp,
                     color = Color.White.copy(alpha = 0.9f),
                     textAlign = TextAlign.Center,

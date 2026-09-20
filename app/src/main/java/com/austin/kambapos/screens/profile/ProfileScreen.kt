@@ -63,6 +63,7 @@ fun ProfileScreen(
     val shift by shiftViewModel.shift.collectAsState()
     val userState = HomeViewModel.uiState
     val total by orderViewModel.totalSales.collectAsState()
+
     val shiftUiState = shiftViewModel.shitftUiState
     val snackbarHostState = remember { SnackbarHostState() }
     var showCloseShiftDialog by remember { mutableStateOf(false) }
@@ -85,6 +86,12 @@ fun ProfileScreen(
     LaunchedEffect(userState) {
         if (userState is UserUiState.Success) {
             orderViewModel.setUserId(userState.user.id)
+        }
+    }
+
+    LaunchedEffect(shift) {
+        shift?.let {
+            orderViewModel.setShiftId(it.id)   // ajuste o nome do campo se não for "id"
         }
     }
 
