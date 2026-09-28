@@ -4,5 +4,5 @@ enum class PaymentMethod(val apiValue: String) {
     CASH("cash"),
     CARD("card"),
     QRCODE("qrcode"),
-    BANK_TRANSFER("bank_transfer")
+    BANK_TRANSFER("BankTransfer") // Corrigido para CamelCase como no PHP
 }

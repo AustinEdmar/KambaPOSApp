@@ -1,6 +1,7 @@
 package com.austin.kambapos.screens.home
 
 import android.media.SoundPool
+import android.util.Log
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,11 +44,13 @@ import com.austin.kambapos.data.model.CartItemDTO
 import com.austin.kambapos.navigation.Screens
 import androidx.compose.ui.platform.LocalContext
 import com.austin.kambapos.core.lib.SunmiPrinter
+import com.austin.kambapos.data.local.entity.CartItemWithProduct
 import com.austin.kambapos.data.model.ReceiptModel
 import com.austin.kambapos.screens.home.components.CashPaymentDialog
 import com.austin.kambapos.screens.home.components.PaymentDialog
 import com.austin.kambapos.screens.home.components.PaymentMethod
 import com.austin.kambapos.screens.home.components.ScreenScaffold
+import com.austin.kambapos.screens.home.components.cart.AuthorizationPinDialog
 import com.austin.kambapos.screens.home.components.cart.OrderItemCard
 
 import com.austin.kambapos.screens.home.components.cart.SummaryRowCart
@@ -84,6 +87,17 @@ fun CartScreen(
     var cartLoaded by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val printer = remember { SunmiPrinter(context.applicationContext) }
+
+    var showAuthModal by remember { mutableStateOf(false) }
+    var pendingDecreaseItem by remember { mutableStateOf<CartItemWithProduct?>(null) }
+    val authFeedback by cartViewModel.authFeedback.collectAsStateWithLifecycle()
+
+    LaunchedEffect(authFeedback) {
+        authFeedback?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            cartViewModel.clearAuthFeedback()
+        }
+    }
 
     LaunchedEffect(Unit) {
         printer.connectPrinter()
@@ -132,15 +146,30 @@ fun CartScreen(
 
     var showSearchDialog by remember { mutableStateOf(false) }
 
+    fun round2(value: Double): Double {
+        return Math.round(value * 100.0) / 100.0
+    }
+
+    // AGT exige arredondamento por excesso (ceiling) no imposto por linha —
+    // confirmado pelo erro E70 do validador (ex.: 500.10 * 14% = 70.014 ->
+    // AGT espera 70.02, não 70.01 de um round() normal).
+    fun ceilMoney(value: Double, decimals: Int = 2): Double {
+        val factor = Math.pow(10.0, decimals.toDouble())
+        val rounded = Math.round(value * factor * 10000.0) / 10000.0 // guarda ruído de float
+        return kotlin.math.ceil(rounded) / factor
+    }
+
     val subtotal = cartitems.sumOf {
-        (it.product?.price ?: 0.0) * it.cartItem.quantity
+        round2(it.cartItem.unitPriceSnapshot * it.cartItem.quantity)  // arredonda por linha, igual ao PHP
     }
 
     val tax = cartitems.sumOf { cartItemWithProduct ->
-        val price    = cartItemWithProduct.product?.price ?: 0.0
-        val qty      = cartItemWithProduct.cartItem.quantity
-        val ivaRate  = cartItemWithProduct.product?.taxPercentage ?: 0.0
-        price * qty * (ivaRate / 100.0)
+        val price   = cartItemWithProduct.cartItem.unitPriceSnapshot
+        val qty     = cartItemWithProduct.cartItem.quantity
+        val ivaRate = cartItemWithProduct.cartItem.ivaRateSnapshot
+
+        val subtotalLine = round2(price * qty)         // 1️⃣ arredonda ANTES do IVA
+        ceilMoney(subtotalLine * (ivaRate / 100.0))     // 2️⃣ só depois aplica IVA (por excesso)
     }
 
     val total = subtotal + tax
@@ -168,21 +197,21 @@ fun CartScreen(
                     cartItemWithProduct.product?.let { product ->
                         OrderItemCard(
                             item = CartItemDTO(
-                                id        = cartItemWithProduct.cartItem.id,
-                                name      = product.name,
-                                stockQty  = product.stock,
-                                iva  = product.taxPercentage?.toInt(),
-                                unitPrice = product.price.toInt(),
-                                quantity  = cartItemWithProduct.cartItem.quantity,
-                                imageUrl  = product.imageUrl
+                                id = cartItemWithProduct.cartItem.id,
+                                name = product.name,
+                                stockQty = product.stock,
+                                iva = product.taxPercentage?.toInt(),
+                                unitPrice = product.price.toKwanza(),
+                                quantity = cartItemWithProduct.cartItem.quantity,
+                                imageUrl = product.imageUrl
                             ),
                             onIncrease = {
-                               soundPool.play(soundId, 1f, 1f, 0, 0, 1f)
+                                soundPool.play(soundId, 1f, 1f, 0, 0, 1f)
                                 cartViewModel.increaseQuantity(cartItemWithProduct)
                             },
                             onDecrease = {
-                                soundPool.play(soundId, 1f, 1f, 0, 0, 1f)
-                                cartViewModel.decreaseQuantity(cartItemWithProduct)
+                                pendingDecreaseItem = cartItemWithProduct
+                                showAuthModal = true
                             },
                             decreaseEnabled = cartItemWithProduct.cartItem.quantity > 0,
                             increaseEnabled = product.stock > 1
@@ -245,7 +274,7 @@ fun CartScreen(
                                                 name = product.name,
                                                 stockQty = product.stock,
                                                 iva = product.taxPercentage?.toInt(),
-                                                unitPrice = product.price.toInt(),
+                                                unitPrice = product.price.toKwanza(),
                                                 quantity = cartItemWithProduct.cartItem.quantity,
                                                 imageUrl = product.imageUrl
                                             )
@@ -301,7 +330,7 @@ fun CartScreen(
                                         name = p.name,
                                         stockQty = p.stock,
                                         iva = p.taxPercentage?.toInt(),
-                                        unitPrice = p.price.toInt(),
+                                        unitPrice = p.price.toKwanza(),
                                         quantity = it.cartItem.quantity,
                                         imageUrl = p.imageUrl
                                     )
@@ -326,6 +355,20 @@ fun CartScreen(
                 }
                 Button(
                     onClick = {
+                        // 🔍 DEBUG temporário — remover depois de confirmar a causa
+                        cartitems.forEach {
+                            Log.d("TaxDebug",
+                                "productId=${it.cartItem.productId} " +
+                                        "qty=${it.cartItem.quantity} " +
+                                        "price=${it.cartItem.unitPriceSnapshot} " +
+                                        "rate=${it.cartItem.ivaRateSnapshot} " +
+                                        "subtotalLine=${it.cartItem.unitPriceSnapshot * it.cartItem.quantity} " +
+                                        "ivaLine=${it.cartItem.unitPriceSnapshot * it.cartItem.quantity * (it.cartItem.ivaRateSnapshot/100.0)}"
+                            )
+                            Log.d("TaxDebug", "rate BigDecimal = ${it.cartItem.ivaRateSnapshot.toBigDecimal()}")
+                        }
+                        Log.d("TaxDebug", "TOTAIS: subtotal=$subtotal tax=$tax total=$total")
+
                         showPaymentDialog = true
                     },
                     modifier = Modifier
@@ -343,5 +386,20 @@ fun CartScreen(
                 }
             }
         }
+    }
+
+
+    if (showAuthModal) {
+        AuthorizationPinDialog(
+            onDismiss = {
+                showAuthModal = false
+                pendingDecreaseItem = null
+            },
+            onPinComplete = { pin ->
+                cartViewModel.onPinSubmitted(pin, pendingDecreaseItem)
+                showAuthModal = false
+                pendingDecreaseItem = null
+            }
+        )
     }
 }

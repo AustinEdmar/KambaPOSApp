@@ -70,6 +70,7 @@ import com.austin.kambapos.viewmodel.HomeViewModel
 import com.austin.kambapos.viewmodel.OrderViewModel
 import com.austin.kambapos.viewmodel.ProductViewModel
 import com.austin.kambapos.viewmodel.ShiftViewModel
+import com.austin.kambapos.viewmodel.UsersViewModel
 
 import kotlin.math.roundToInt
 
@@ -84,6 +85,7 @@ fun ProductsScreen(
     cartViewModel: CartViewModel = hiltViewModel(),
     HomeViewModel: HomeViewModel = hiltViewModel(),
     AuthviewModel: AuthViewModel = hiltViewModel(),
+    UsersViewModel: UsersViewModel = hiltViewModel(),
 
 ) {
     var showAbrirTurnoDialog by remember { mutableStateOf(true) }
@@ -102,6 +104,7 @@ fun ProductsScreen(
     val cartCount by cartViewModel.cartCount.collectAsState()
     var showSearchDialog by remember { mutableStateOf(false) }
     val context = LocalContext.current
+
     val error by orderViewModel.errorMessage.collectAsState()
 
     val soundPool = remember { SoundPool.Builder().setMaxStreams(1).build() }
@@ -174,11 +177,16 @@ fun ProductsScreen(
     }
 
     // ─── LaunchedEffects ──────────────────────────────────────────────────────
+
+
+
     LaunchedEffect(uiState) {
-        if (uiState is AuthUiState.Unauthenticated) {
-            navController.navigate(Screens.Login.route) {
-                popUpTo(0) { inclusive = true }
+        when (uiState) {
+            is AuthUiState.Unauthenticated -> {
+                navController.navigate(Screens.Login.route) { popUpTo(0) { inclusive = true } }
             }
+            is AuthUiState.Authenticated -> UsersViewModel.syncUsers()
+            else -> Unit
         }
     }
 
@@ -208,6 +216,8 @@ fun ProductsScreen(
             Toast.makeText(context, it, Toast.LENGTH_SHORT).show()
         }
     }
+
+
 
     // ─── UI ───────────────────────────────────────────────────────────────────
     Box(
@@ -269,6 +279,7 @@ fun ProductsScreen(
                             product = product,
                             onClick = {
                                 soundPool.play(soundId, 1f, 1f, 0, 0, 1f)
+
                                 if (product.stock <= 0) {
                                     Toast.makeText(context, "Produto sem estoque", Toast.LENGTH_SHORT).show()
                                     return@ProductItemCard

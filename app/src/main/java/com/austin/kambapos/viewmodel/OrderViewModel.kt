@@ -153,6 +153,7 @@ class OrderViewModel @Inject constructor(
         received: Double?,
         change: Double?
     ) {
+        Log.d("OrderViewModel", "Enviando fechamento de venda: id=$orderId, metodo=$paymentMethod, recebido=$received")
         viewModelScope.launch {
             val result = ordersRepository.closeOrder(
                 orderId,
@@ -161,11 +162,12 @@ class OrderViewModel @Inject constructor(
                 change
             )
             result.onSuccess {
+                Log.d("OrderViewModel", "Venda fechada com sucesso: $it")
                 _closeOrderState.value = it
                 _orderId.value = null
             }.onFailure { error ->
                 _closeOrderState.value = error.message ?: "Erro ao fechar venda"
-                Log.e("OrderViewModel", "Erro ao fechar venda", error)
+                Log.e("OrderViewModel", "Erro ao fechar venda via $paymentMethod", error)
             }
         }
     }

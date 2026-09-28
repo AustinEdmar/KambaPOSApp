@@ -6,7 +6,7 @@ object CoreUrl {
    //const val PROTOCOL = "https"
    const val PROTOCOL = "http://"
 
-    const val HOST = "172.20.10.2" // sunmi 925192.168.11.39
+    const val HOST = "192.168.18.2" // iphone 172.20.10.2
 
    const val PORT = "8080"
    const val PUSHER_PORT = 8081
@@ -14,8 +14,12 @@ object CoreUrl {
    const val API_PATH = "api/"
 
 
+
    val BASE_URL = "$PROTOCOL$HOST:$PORT/$API_PATH"
 
+    // url
+
    val SERVER_URL = "$PROTOCOL$HOST:$PORT"
+    //url image
    val STORAGE_URL = "$SERVER_URL/storage/"
 }

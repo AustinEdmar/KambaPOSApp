@@ -1,11 +1,11 @@
 package com.austin.kambapos.di
 
-
 import com.austin.kambapos.data.api.AuthApi
 import com.austin.kambapos.data.api.CoreUrl.BASE_URL
 import com.austin.kambapos.data.api.OrdersApi
 import com.austin.kambapos.data.api.ProductApi
 import com.austin.kambapos.data.api.ShiftApi
+import com.austin.kambapos.data.api.UsersApi
 import com.austin.kambapos.data.datastore.TokenManager
 import dagger.Module
 import dagger.Provides
@@ -16,15 +16,12 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.util.concurrent.TimeUnit
 
-
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
     @Provides
-    fun provideOkHttp(
-        tokenManager: TokenManager
-    ): OkHttpClient =
+    fun provideOkHttp(tokenManager: TokenManager): OkHttpClient =
         OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor(tokenManager))
             .connectTimeout(30, TimeUnit.SECONDS)
@@ -34,22 +31,16 @@ object NetworkModule {
             .build()
 
     @Provides
-    fun provideRetrofit(
-        okHttpClient: OkHttpClient
-    ): Retrofit =
+    fun provideRetrofit(okHttpClient: OkHttpClient): Retrofit =
         Retrofit.Builder()
-            .baseUrl(BASE_URL) // salo meu pc
-            .client(okHttpClient) // 🔥 ISTO É O QUE FALTAVA
+            .baseUrl(BASE_URL)
+            .client(okHttpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
-
-
 
     @Provides
     fun provideAuthApi(retrofit: Retrofit): AuthApi =
         retrofit.create(AuthApi::class.java)
-    
-
 
     @Provides
     fun provideShiftApi(retrofit: Retrofit): ShiftApi =
@@ -59,14 +50,12 @@ object NetworkModule {
     fun provideProductApi(retrofit: Retrofit): ProductApi =
         retrofit.create(ProductApi::class.java)
 
-
     @Provides
     fun provideOrdersApi(retrofit: Retrofit): OrdersApi =
         retrofit.create(OrdersApi::class.java)
 
-
-
-
-
-
+    // ✅ Novo
+    @Provides
+    fun provideUsersApi(retrofit: Retrofit): UsersApi =
+        retrofit.create(UsersApi::class.java)
 }

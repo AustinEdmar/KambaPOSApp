@@ -121,15 +121,22 @@ WHERE orderId = :orderId AND productId = :productId
 
 
     @Query("""
-UPDATE cart_items
-SET 
-    quantity = quantity - 1,
-    delta = delta - 1,
-    pendingSync = 1,
-     syncVersion = syncVersion + 1   -- ← adicionar aqui
-WHERE id = :itemId
+    UPDATE cart_items
+    SET 
+        quantity = quantity - 1,
+        delta = delta - 1,
+        pendingSync = 1,
+        syncVersion = syncVersion + 1,
+        pendingAuthorizationPin = :pin
+    WHERE id = :itemId
 """)
-    suspend fun decreaseQuantity(itemId: Int)
+    suspend fun decreaseQuantity(itemId: Int, pin: String?)
+
+    @Transaction
+    suspend fun decreaseQuantityTransaction(item: CartItemEntity, pin: String?) {
+        incrementStock(item.productId)
+        decreaseQuantity(item.id, pin)
+    }
 
 
 
@@ -139,11 +146,13 @@ WHERE id = :itemId
         insertProduct(product)
 
         val rowsAffected = decrementStock(product.id)
-
         if (rowsAffected == 0) {
             throw Exception("Produto sem estoque")
         }
 
+        // se já existe linha para este produto no pedido, o preço congelado
+        // da PRIMEIRA unidade prevalece — não se re-congela a cada +1,
+        // tal como a API só grava unit_price uma vez no primeiro addItem()
         val rows = increaseQuantity(orderId, product.id)
 
         if (rows == 0) {
@@ -153,7 +162,9 @@ WHERE id = :itemId
                     productId = product.id,
                     quantity = 1,
                     delta = 1,
-                    pendingSync = true
+                    pendingSync = true,
+                    unitPriceSnapshot = product.price,
+                    ivaRateSnapshot = product.taxPercentage ?: 0.0
                 )
             )
         }
@@ -171,24 +182,9 @@ WHERE id = :itemId
         increaseQuantity(item.orderId, item.productId)
     }
 
-//    @Transaction
-//    suspend fun decreaseQuantityTransaction(item: CartItemEntity) {
-//
-//        incrementStock(item.productId)
-//
-//        decreaseQuantity(item.id)
-//
-//        deleteProductIfNotInCart(item.productId)
-//    }
 
-    @Transaction
-    suspend fun decreaseQuantityTransaction(item: CartItemEntity) {
-        incrementStock(item.productId)
-        decreaseQuantity(item.id)
-        
-        // Removido o delete imediato. 
-        // Agora o syncCart é responsável por deletar quando a quantidade chegar a 0 E o delta for sincronizado.
-    }
+
+
 
     @Query("""
     UPDATE cart_items

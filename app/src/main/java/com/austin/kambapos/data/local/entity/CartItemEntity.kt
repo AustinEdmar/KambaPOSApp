@@ -24,11 +24,17 @@ data class CartItemEntity(
 
     val orderId: Int?,
     val productId: Int,
-
+    val pendingAuthorizationPin: String? = null,
     val quantity: Int = 1,
     val delta: Int = 0,
 
     val pendingSync: Boolean = true,
-    val syncVersion: Int = 0  // ← novo campo
+    val syncVersion: Int = 0,  // ← novo campo
+
+    // NOVO: congelados no momento do addToCartTransaction — nunca mudam
+    // depois, mesmo que o preço do produto no catálogo seja actualizado.
+    // Espelha unit_price/iva_rate do order_items na API.
+    val unitPriceSnapshot: Double = 0.0,
+    val ivaRateSnapshot: Double = 0.0
 )
 

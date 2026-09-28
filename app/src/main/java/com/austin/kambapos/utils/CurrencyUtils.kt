@@ -4,6 +4,8 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import java.math.BigDecimal
+import java.math.RoundingMode
 // CurrencyUtils.kt
 
 // 🔹 para input (MANTER)
@@ -29,16 +31,21 @@ fun parseKwanzaToDouble(formatted: String): Double {
 }
 
 // 🔥 NOVO (profissional)
+
+
 fun Double?.toKwanza(): String {
     if (this == null) return "0,00 Kz"
 
-    val intPart = this.toInt()
-    val decPart = ((this - intPart) * 100).toInt()
+    // BigDecimal a partir da STRING (não do Double directamente) evita
+    // herdar o ruído binário do Double antes mesmo de arredondar
+    val bd = BigDecimal(this.toString()).setScale(2, RoundingMode.HALF_UP)
+
+    val intPart = bd.toBigInteger()
+    val decPart = bd.subtract(BigDecimal(intPart)).movePointRight(2).toInt()
 
     val formatted = "%,d".format(intPart).replace(',', '.')
     return "$formatted,${"%02d".format(decPart)} Kz"
 }
-
 
 class KwanzaVisualTransformation : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {

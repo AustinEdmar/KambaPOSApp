@@ -27,6 +27,8 @@ import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
 import com.austin.kambapos.data.api.CoreUrl
 import com.austin.kambapos.data.model.CartItemDTO
+import com.austin.kambapos.utils.parseKwanzaToDouble
+import com.austin.kambapos.utils.toKwanza
 
 @Composable
 fun OrderItemCard(
@@ -41,6 +43,11 @@ fun OrderItemCard(
         item.imageUrl.startsWith("http") -> item.imageUrl
         else -> "${CoreUrl.STORAGE_URL}${item.imageUrl.removePrefix("/")}"
     }
+
+    // Usamos parseKwanzaToDouble porque unitPrice é uma String formatada (ex: "1.000,00 Kz")
+    // toDoubleOrNull() retorna null quando encontra caracteres como ".", "," ou "Kz"
+    val price = parseKwanzaToDouble(item.unitPrice)
+    val totalPrice = price * item.quantity
 
     Card(
         modifier = Modifier
@@ -76,13 +83,13 @@ fun OrderItemCard(
                 Row {
                     Text("${item.stockLabel} ", fontSize = 12.sp, color = Color.Gray)
                     Text("${item.stockQty},  ", fontSize = 12.sp, color = Color.Red, fontWeight = FontWeight.SemiBold)
-                    Text("Preço: ${item.unitPrice} kz", fontSize = 12.sp, color = Color.Gray)
+                    Text("Preço: ${item.unitPrice}", fontSize = 12.sp, color = Color.Gray)
                 }
 
                 Spacer(modifier = Modifier.height(1.dp))
                 Row {
                     Text("Preço total:  ", fontSize = 12.sp, color = Color.Gray)
-                    Text("${item.unitPrice * item.quantity} KZ", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                    Text(totalPrice.toKwanza(), fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                 }
                 Row {
                     Text("Iva ao produto: ", fontSize = 12.sp, color = Color.Gray)

@@ -21,6 +21,8 @@ import com.sunmi.peripheral.printer.*
 import java.text.DateFormat
 // (11) Importa Date — representa o momento actual do sistema (data e hora)
 import java.util.Date
+// Importamos os utilitários de moeda
+import com.austin.kambapos.utils.parseKwanzaToDouble
 
 // (12) Declara a classe SunmiPrinter recebendo o Context no construtor.
 //      O "private val" guarda o context como propriedade privada acessível em toda a classe.
@@ -233,7 +235,7 @@ class SunmiPrinter(private val context: Context) {
             // (29.2) Imprime o logo/nome da loja no topo
             printLogo()
 
-           // printer.printText("\n=== ${receipt.copyType} ===\n")
+            // printer.printText("\n=== ${receipt.copyType} ===\n")
 
             // (29.3) Título principal do documento centrado
             printTextWithSpacing(
@@ -248,56 +250,39 @@ class SunmiPrinter(private val context: Context) {
                 alignment = 1
             )
 
-            printTextWithSpacing(
-                text = "Telemovel: 923851259",
-                bottomSpacing = 1,
-                alignment = 1
-            )
-
-            printTextWithSpacing(
-                text = "ORIGINAL",
-                bottomSpacing = 1,
-                alignment = 1
-            )
-
-            // (29.5) Linha dupla "===" separando o cabeçalho dos dados do pedido
-            addSeparatorLine("=", 32)
-
-            // (29.6) Data e hora formatadas de forma legível (ex: "04/04/2026 10:32")
-            val dataFormatada = DateFormat.getDateTimeInstance().format(Date())
-
-            // (29.7) Número do pedido com 5 dígitos e zeros à esquerda (ex: "00127")
-            //        Se orderId for null, mostra "-----"
-            val pedidoFormatado = receipt.orderId?.let {
-                String.format("%05d", it)
-            } ?: "-----"
-
-            // (29.8) Imprime cada informação do pedido alinhada: chave à esq, valor à dir
-            printKeyValue("Data", dataFormatada)
+            // (29.5) Número do pedido e mesa (se existirem)
+            if (receipt.orderId != null) {
+                printKeyValue("Pedido #", receipt.orderId.toString())
+            }
             printKeyValue("Mesa", receipt.tableId.toString())
-            printKeyValue("Pedido #", pedidoFormatado)
 
-            // (29.9) Linha simples "---" separando as infos do pedido da tabela de itens
+            // (29.6) Data e Hora da emissão do recibo
+            val dateStr = DateFormat.getDateTimeInstance().format(Date())
+            printKeyValue("Data", dateStr)
+
+            // (29.7) Linha simples "---" separando o cabeçalho do corpo dos itens
             addSeparatorLine("-", 32)
 
-            // (29.10) Cabeçalho das colunas da tabela de itens
+            // (29.8) Cabeçalho das colunas da tabela de itens
             //         padColumns distribui 5 colunas em 32 caracteres de largura
             printTextWithSpacing(
                 text = padColumns("ITEM", "QTD", "IVA", "UNIT", "TOTAL"),
                 bottomSpacing = 0
             )
 
-            // (29.11) Linha separadora abaixo do cabeçalho da tabela
+            // (29.9) Linha separadora abaixo do cabeçalho da tabela
             addSeparatorLine("-", 32)
 
-            // (29.12) Itera cada item do carrinho e imprime uma linha formatada
+            // (29.10) Itera cada item do carrinho e imprime uma linha formatada
             val qtyWidth   = 4
             val ivaWidth   = 6
             val priceWidth = 10
             val totalWidth = 10
 
             receipt.items.forEach { item ->
-                val lineTotal = item.unitPrice * item.quantity
+                // 💡 Corrigido: Usamos parseKwanzaToDouble para remover a formatação da String
+                val price = parseKwanzaToDouble(item.unitPrice)
+                val lineTotal = price * item.quantity
 
                 // (A) Nome ocupa a linha toda — truncado a 30 chars se necessário
                 printTextWithSpacing(
@@ -311,28 +296,28 @@ class SunmiPrinter(private val context: Context) {
                     text =
                         "  ${item.quantity}x".padStart(qtyWidth) +
                                 "${item.iva}%".padStart(ivaWidth) +
-                                "${formatKz(item.unitPrice.toDouble())}".padStart(priceWidth) +
-                                "${formatKz(lineTotal.toDouble())}".padStart(totalWidth),
+                                "${formatKz(price)}".padStart(priceWidth) +
+                                "${formatKz(lineTotal)}".padStart(totalWidth),
                     bottomSpacing = 1 // espaço entre itens para separar visualmente
                 )
             }
 
-            // (29.13) Linha separadora entre os itens e o resumo financeiro
+            // (29.11) Linha separadora entre os itens e o resumo financeiro
             addSeparatorLine("-", 32)
 
-            // (29.14) ✅ IVA calculado por produto e acumulado no ReceiptModel — já vem correcto
+            // (29.12) ✅ IVA calculado por produto e acumulado no ReceiptModel — já vem correcto
             //         Subtotal = soma dos (preço × qtd) sem IVA
             //         tax      = soma dos IVAs reais por item (ex: 14% ou 7% conforme produto)
             //         total    = subtotal + tax
 
-            // (29.15) Imprime subtotal e IVA alinhados chave/valor em Kz (não em %)
+            // (29.13) Imprime subtotal e IVA alinhados chave/valor em Kz (não em %)
             printKeyValue("Subtotal", "${formatKz(receipt.subtotal)} kz")
             printKeyValue("IVA (incl.)", "${formatKz(receipt.tax)} kz") // ✅ valor em kz, não percentagem
 
-            // (29.16) Linha dupla "===" antes do total final
+            // (29.14) Linha dupla "===" antes do total final
             addSeparatorLine("=", 32)
 
-            // (29.16.1) Método de pagamento formatado em texto legível
+            // (29.15) Método de pagamento formatado em texto legível
 
             val paymentText = when (receipt.paymentMethod) {
                 "cash" -> "Dinheiro"
@@ -347,10 +332,10 @@ class SunmiPrinter(private val context: Context) {
                 alignment = 1
             )
 
-            // (29.16.2) Mostrar troco apenas se o pagamento for em dinheiro
+            // (29.16) Mostrar troco apenas se o pagamento for em dinheiro
             if (receipt.paymentMethod == "cash") {
 
-                // (29.16.3) Valor entregue pelo cliente — só imprime se não for null
+                // (29.17) Valor entregue pelo cliente — só imprime se não for null
                 receipt.paidAmount?.let {
                     printTextWithSpacing(
                         text = "Entregue: ${formatKz(it)} kz", // ✅ formatKz(Double)
@@ -358,7 +343,7 @@ class SunmiPrinter(private val context: Context) {
                     )
                 }
 
-                // (29.16.4) Troco a devolver ao cliente — só imprime se não for null
+                // (29.18) Troco a devolver ao cliente — só imprime se não for null
                 receipt.change?.let {
                     printTextWithSpacing(
                         text = "Troco de: ${formatKz(it)} kz", // ✅ formatKz(Double)
@@ -370,7 +355,7 @@ class SunmiPrinter(private val context: Context) {
 
             addSeparatorLine("=", 32)
 
-            // (29.17) Total final em destaque, centrado
+            // (29.19) Total final em destaque, centrado
             printTextWithSpacing(
                 text = "TOTAL: ${formatKz(receipt.total)} kz", // ✅ formatKz(Double)
                 topSpacing = 1,
@@ -378,10 +363,10 @@ class SunmiPrinter(private val context: Context) {
                 alignment = 1
             )
 
-            // (29.18) Linha dupla "===" fechando o corpo do recibo
+            // (29.20) Linha dupla "===" fechando o corpo do recibo
             addSeparatorLine("=", 32)
 
-            // (29.19) Mensagem de agradecimento centrada
+            // (29.21) Mensagem de agradecimento centrada
             printTextWithSpacing(
                 text = "Obrigado pela preferencia!",
                 topSpacing = 1,
@@ -395,18 +380,18 @@ class SunmiPrinter(private val context: Context) {
                 alignment = 1
             )
 
-            // (29.20) Identificação da via — 4 linhas em branco para o papel avançar e poder ser rasgado
+            // (29.22) Identificação da via — 4 linhas em branco para o papel avançar e poder ser rasgado
             printTextWithSpacing(
                 text = "=== ${receipt.copyType} ===",
                 bottomSpacing = 4,
                 alignment = 1
             )
 
-            // (29.21) Confirma ao utilizador na UI que o recibo foi enviado à impressora
+            // (29.23) Confirma ao utilizador na UI que o recibo foi enviado à impressora
             Toast.makeText(context, "Recibo enviado!", Toast.LENGTH_SHORT).show()
 
         } catch (e: RemoteException) {
-            // (29.22) Captura erros de comunicação durante qualquer etapa da impressão do recibo
+            // (29.24) Captura erros de comunicação durante qualquer etapa da impressão do recibo
             Toast.makeText(
                 context,
                 "Erro ao imprimir recibo: ${e.message}",
@@ -615,7 +600,7 @@ class SunmiPrinter(private val context: Context) {
     // BLOCO I — HELPERS DE FORMATAÇÃO DO RECIBO
     // ════════════════════════════════════════════════════════
 
-    // (39) Imprime uma linha com chave à esquerda e valor à direita, preenchendo o espaço entre eles.
+    // (39) Imprime uma linha with chave à esquerda e valor à direita, preenchendo o espaço entre eles.
     //      Exemplo: "Mesa              3"
     //      key:   texto da etiqueta (ex: "Mesa", "Data", "Pedido #")
     //      value: valor a mostrar à direita (ex: "3", "04/04/2026")
@@ -701,7 +686,7 @@ class SunmiPrinter(private val context: Context) {
         // (43.9) Calcula a altura total necessária com base nas métricas da fonte
         val height = (metrics.bottom - metrics.top).toInt()
 
-        // (43.10) Cria o Bitmap com padding extra (+20 largura, +10 altura) para não cortar as bordas
+        // (43.10) Cria o Bitmap with padding extra (+20 largura, +10 altura) para não cortar as bordas
         //         ARGB_8888 = máxima qualidade de cor (8 bits por canal: Alpha, Red, Green, Blue)
         val bitmap = Bitmap.createBitmap(width + 20, height + 10, Bitmap.Config.ARGB_8888)
 

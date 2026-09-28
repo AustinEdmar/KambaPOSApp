@@ -6,7 +6,7 @@ data class CartItemDTO(
     val stockLabel: String = "Stock:",
     val stockQty: Int,
     val iva: Int?,
-    val unitPrice: Int,
+    val unitPrice: String,
     val quantity: Int = 1,
     val imageUrl: String?
 )
