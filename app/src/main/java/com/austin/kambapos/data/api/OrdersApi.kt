@@ -50,6 +50,7 @@ interface OrdersApi {
         @Body request: CloseOrderRequest
     ): Response<CloseOrderResponse>
 
-
+    @GET("orders/{orderId}/receipt")
+    suspend fun getReceipt(@Path("orderId") orderId: Int): Response<CloseOrderResponse>
 
 }

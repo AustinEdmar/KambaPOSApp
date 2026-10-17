@@ -28,7 +28,7 @@ class CartRepository @Inject constructor (
         extraBufferCapacity = 1,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val navigationEvent = _navigationEvent.asSharedFlow()
+
 
     suspend fun addToCart(orderId: Int?, product: ProductEntity) {
 

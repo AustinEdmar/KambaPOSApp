@@ -6,11 +6,14 @@ import androidx.lifecycle.viewModelScope
 import com.austin.kambapos.data.local.entity.CartItemWithProduct
 import com.austin.kambapos.data.local.entity.OrderWithItems
 import com.austin.kambapos.data.repository.OrdersRepository
+import com.austin.kambapos.data.responses.OrderResponses.CloseOrderResponse
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.filterNotNull
@@ -35,6 +38,12 @@ class OrderViewModel @Inject constructor(
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage = _errorMessage.asStateFlow()
 
+    private val _orderClosed = MutableSharedFlow<CloseOrderResponse>(extraBufferCapacity = 1)
+    val orderClosed = _orderClosed.asSharedFlow()
+
+
+    private val _closeFailed = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val closeFailed = _closeFailed.asSharedFlow()
     private val _closeOrderState = MutableStateFlow<String?>(null)
     val closeOrderState = _closeOrderState.asStateFlow()
 
@@ -92,6 +101,7 @@ class OrderViewModel @Inject constructor(
         }
     }
 
+    suspend fun loadReceipt(orderId: Int) = ordersRepository.getReceipt(orderId)
     fun setShiftId(id: Int) {
         _shiftId.value = id
     }
@@ -151,27 +161,31 @@ class OrderViewModel @Inject constructor(
         orderId: Int?,
         paymentMethod: String,
         received: Double?,
-        change: Double?
+        change: Double?,
+        customerId: Long? = null,
+        documentType: String? = null,   // null => o backend usa o default (FR)
     ) {
         Log.d("OrderViewModel", "Enviando fechamento de venda: id=$orderId, metodo=$paymentMethod, recebido=$received")
         viewModelScope.launch {
             val result = ordersRepository.closeOrder(
-                orderId,
-                paymentMethod,
-                received,
-                change
+                orderId = orderId,
+                paymentMethod = paymentMethod,
+                received = received,
+                change = change,
+                customerId = customerId,
+                documentType = documentType
             )
-            result.onSuccess {
-                Log.d("OrderViewModel", "Venda fechada com sucesso: $it")
-                _closeOrderState.value = it
+            result.onSuccess { resp ->
+                Log.d("OrderViewModel", "Venda fechada com sucesso: ${resp.invoiceNumber}")
+                _closeOrderState.value = resp.message ?: "Pedido fechado"
                 _orderId.value = null
+                _orderClosed.emit(resp)
             }.onFailure { error ->
                 _closeOrderState.value = error.message ?: "Erro ao fechar venda"
                 Log.e("OrderViewModel", "Erro ao fechar venda via $paymentMethod", error)
             }
         }
     }
-
     fun clearCloseOrderState() {
         _closeOrderState.value = null
     }

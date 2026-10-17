@@ -18,7 +18,9 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cancel
+import androidx.compose.material.icons.filled.Print
 import androidx.compose.material.icons.filled.ReceiptLong
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -27,15 +29,24 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.austin.kambapos.core.lib.SunmiPrinter
 import com.austin.kambapos.data.local.entity.OrderWithItems
 import com.austin.kambapos.ui.theme.DividerColor
 import com.austin.kambapos.ui.theme.SunmiGradient
@@ -46,10 +57,14 @@ import com.austin.kambapos.utils.toKwanza
 @Composable
 fun OrderDetailsDialog(
     orderWithItems: OrderWithItems,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    reprintEnabled: Boolean = true,
+    onReprint: () -> Unit
 ) {
     val order = orderWithItems.order
     val items = orderWithItems.items
+
+
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -337,6 +352,20 @@ fun OrderDetailsDialog(
                         fontWeight = FontWeight.Bold,
                         valueColor = Color.Blue
                     )
+
+
+                    if (orderWithItems.order.status != "open") {
+                        Button(
+                            onClick = onReprint,
+                            enabled = reprintEnabled,
+                            modifier = Modifier.fillMaxWidth().height(46.dp),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.Print, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.size(6.dp))
+                            Text("Imprimir talão", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         }

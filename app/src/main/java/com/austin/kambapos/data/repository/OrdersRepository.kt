@@ -9,6 +9,7 @@ import com.austin.kambapos.data.local.mapper.toEntity
 import com.austin.kambapos.data.model.OrderResquest.CloseOrderRequest
 import com.austin.kambapos.data.model.OrderResquest.OpenOrderRequest
 import com.austin.kambapos.data.model.OrdersDTO
+import com.austin.kambapos.data.responses.OrderResponses.CloseOrderResponse
 import kotlinx.coroutines.flow.Flow
 import javax.inject.Inject
 
@@ -39,8 +40,10 @@ class OrdersRepository @Inject constructor (
         orderId: Int?,
         paymentMethod: String,
         received: Double?,
-        change: Double?
-    ): Result<String> {
+        change: Double?,
+        customerId: Long? = null,
+        documentType: String? = null
+    ): Result<CloseOrderResponse> {
         if (orderId == null) {
             return Result.failure(Exception("ID da venda não encontrado"))
         }
@@ -50,17 +53,19 @@ class OrdersRepository @Inject constructor (
                 orderId,
                 CloseOrderRequest(
                     payment_method = paymentMethod,
-                    table_id = 0, // Sem mesa
+
                     received = received,
-                    change = change
+                    change = change,
+                    customer_id = customerId,
+                    document_type = documentType
                 )
             )
 
             if (response.isSuccessful) {
-                val message = response.body()?.message ?: "Pedido fechado"
+                val body = response.body() ?: CloseOrderResponse(message = "Pedido fechado")
                 cartDao.clearCart(orderId)
                 orderDao.deleteOrderById(orderId)
-                Result.success(message)
+                Result.success(body)
             } else {
                 val errorMsg = response.errorBody()?.string() ?: "Erro ao fechar pedido"
                 Log.e("OrdersRepository", "Erro API closeOrder: $errorMsg")
@@ -88,6 +93,15 @@ class OrdersRepository @Inject constructor (
         } catch (e: Exception) {
             Log.e("ORDER_DEBUG", "syncOrders falhou", e)
         }
+    }
+
+    suspend fun getReceipt(orderId: Int): Result<CloseOrderResponse> = try {
+        val r = api.getReceipt(orderId)
+        val body = r.body()
+        if (r.isSuccessful && body != null) Result.success(body)
+        else Result.failure(Exception("Talão não disponível (${r.code()})"))
+    } catch (e: Exception) {
+        Result.failure(Exception("Sem ligação ao servidor"))
     }
 
     fun observeOrdersWithItems(userId: Int) = orderDao.observeOrdersWithItems(userId)

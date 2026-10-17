@@ -13,6 +13,7 @@ import android.widget.Toast
 import androidx.compose.runtime.State
 // (7) Importa mutableStateOf — cria um estado reactivo que o Compose detecta e re-renderiza automaticamente
 import androidx.compose.runtime.mutableStateOf
+import com.austin.kambapos.data.model.ReceiptCompany
 // (8) Importa o modelo de item do carrinho usado no recibo
 import com.austin.kambapos.data.model.ReceiptModel
 // (9) Importa toda a SDK da impressora Sunmi — SunmiPrinterService, InnerPrinterManager, callbacks, etc.
@@ -23,6 +24,10 @@ import java.text.DateFormat
 import java.util.Date
 // Importamos os utilitários de moeda
 import com.austin.kambapos.utils.parseKwanzaToDouble
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Locale
+import kotlin.coroutines.resume
 
 // (12) Declara a classe SunmiPrinter recebendo o Context no construtor.
 //      O "private val" guarda o context como propriedade privada acessível em toda a classe.
@@ -226,178 +231,163 @@ class SunmiPrinter(private val context: Context) {
     //      tableId  → número da mesa
     //      orderId  → identificador do pedido (pode ser null)
     fun printReceipt(
-        receipt: ReceiptModel
+        receipt: ReceiptModel,
+        onDone: (() -> Unit)? = null
     ) = requirePrinter {
         try {
-            // (29.1) Reinicia a impressora para um estado limpo antes de começar o recibo
             printerService?.printerInit(null)
+            printerService?.enterPrinterBuffer(true)
 
-            // (29.2) Imprime o logo/nome da loja no topo
-            printLogo()
-
-            // printer.printText("\n=== ${receipt.copyType} ===\n")
-
-            // (29.3) Título principal do documento centrado
-            printTextWithSpacing(
-                text = "FACTURA / RECIBO",
-                alignment = 1 // 1 = centrado
-            )
-
-            // (29.4) NIF da empresa abaixo do título — altere para o NIF real
-            printTextWithSpacing(
-                text = "NIF: 000000000",
-                bottomSpacing = 1,
-                alignment = 1
-            )
-
-            // (29.5) Número do pedido e mesa (se existirem)
-            if (receipt.orderId != null) {
-                printKeyValue("Pedido #", receipt.orderId.toString())
+            // ── CABEÇALHO: empresa ──
+            printLogo(company = receipt.company)
+            receipt.company?.phone?.takeIf { it.isNotBlank() }?.let {
+                printTextWithSpacing("Tlf: $it", bottomSpacing = 0, alignment = 1)
             }
-            printKeyValue("Mesa", receipt.tableId.toString())
-
-            // (29.6) Data e Hora da emissão do recibo
-            val dateStr = DateFormat.getDateTimeInstance().format(Date())
-            printKeyValue("Data", dateStr)
-
-            // (29.7) Linha simples "---" separando o cabeçalho do corpo dos itens
-            addSeparatorLine("-", 32)
-
-            // (29.8) Cabeçalho das colunas da tabela de itens
-            //         padColumns distribui 5 colunas em 32 caracteres de largura
-            printTextWithSpacing(
-                text = padColumns("ITEM", "QTD", "IVA", "UNIT", "TOTAL"),
-                bottomSpacing = 0
-            )
-
-            // (29.9) Linha separadora abaixo do cabeçalho da tabela
-            addSeparatorLine("-", 32)
-
-            // (29.10) Itera cada item do carrinho e imprime uma linha formatada
-            val qtyWidth   = 4
-            val ivaWidth   = 6
-            val priceWidth = 10
-            val totalWidth = 10
-
-            receipt.items.forEach { item ->
-                // 💡 Corrigido: Usamos parseKwanzaToDouble para remover a formatação da String
-                val price = parseKwanzaToDouble(item.unitPrice)
-                val lineTotal = price * item.quantity
-
-                // (A) Nome ocupa a linha toda — truncado a 30 chars se necessário
-                printTextWithSpacing(
-                    text = item.name.take(30),
-                    bottomSpacing = 0,
-                    alignment = 1
-                )
-
-                // (B) Linha abaixo com qtd | IVA% | preço unit | total (sem coluna de nome)
-                printTextWithSpacing(
-                    text =
-                        "  ${item.quantity}x".padStart(qtyWidth) +
-                                "${item.iva}%".padStart(ivaWidth) +
-                                "${formatKz(price)}".padStart(priceWidth) +
-                                "${formatKz(lineTotal)}".padStart(totalWidth),
-                    bottomSpacing = 1 // espaço entre itens para separar visualmente
-                )
+            receipt.company?.nif?.takeIf { it.isNotBlank() }?.let {
+                printTextWithSpacing("NIF: $it", bottomSpacing = 1, alignment = 1)
             }
 
-            // (29.11) Linha separadora entre os itens e o resumo financeiro
-            addSeparatorLine("-", 32)
-
-            // (29.12) ✅ IVA calculado por produto e acumulado no ReceiptModel — já vem correcto
-            //         Subtotal = soma dos (preço × qtd) sem IVA
-            //         tax      = soma dos IVAs reais por item (ex: 14% ou 7% conforme produto)
-            //         total    = subtotal + tax
-
-            // (29.13) Imprime subtotal e IVA alinhados chave/valor em Kz (não em %)
-            printKeyValue("Subtotal", "${formatKz(receipt.subtotal)} kz")
-            printKeyValue("IVA (incl.)", "${formatKz(receipt.tax)} kz") // ✅ valor em kz, não percentagem
-
-            // (29.14) Linha dupla "===" antes do total final
+            // ── DOCUMENTO ──
+            val title = when (receipt.documentType) {
+                "FT" -> "FACTURA"
+                "TV" -> "TALAO DE VENDA"
+                else -> "FACTURA / RECIBO"
+            }
+            addSeparatorLine("=", 32)
+            printTextWithSpacing(title, bottomSpacing = 0, alignment = 1)
+            receipt.documentNumber?.let {
+                printTextWithSpacing("N.º $it", bottomSpacing = 0, alignment = 1)
+            }
+            printKeyValue("Data", receipt.issuedAt ?: DateFormat.getDateTimeInstance().format(Date()))
             addSeparatorLine("=", 32)
 
-            // (29.15) Método de pagamento formatado em texto legível
+            receipt.orderId?.let {
+                printBitmapWithSpacing(
+                    bitmap = createTextBitmap("PEDIDO N.º $it", 38, bold = true),
+                    topSpacing = 0, bottomSpacing = 1, alignment = 1
+                )
+            }
 
+            receipt.operatorName?.let { printKeyValue("Operador", it.take(22)) }
+            receipt.terminal?.takeIf { it.isNotBlank() }?.let { printKeyValue("Terminal", it.take(20)) }
+
+            // ── CLIENTE ──
+            addSeparatorLine("-", 32)
+            printKeyValue("Cliente", receipt.customerName.take(24))
+            printKeyValue("NIF", receipt.customerTaxNumber)
+            receipt.customerAddress?.takeIf { it.isNotBlank() }?.let {
+                printTextWithSpacing(it, bottomSpacing = 0)
+            }
+
+            // ── ITENS ──
+            addSeparatorLine("-", 32)
+            printTextWithSpacing(itemRow("QTD", "IVA", "UNIT", "TOTAL"), bottomSpacing = 0)
+            addSeparatorLine("-", 32)
+
+            receipt.lines.forEach { l ->
+                val head = listOfNotNull(l.code?.takeIf { it.isNotBlank() }, l.name).joinToString(" ")
+                printTextWithSpacing(head, bottomSpacing = 0)
+                printTextWithSpacing(
+                    itemRow(qtyText(l.quantity), "${l.taxRate.toInt()}%", money(l.unitPrice), money(l.net)),
+                    bottomSpacing = 1
+                )
+            }
+
+            // ── TOTAIS ──
+            addSeparatorLine("-", 32)
+            printKeyValue("Subtotal", "${money(receipt.subtotal)} kz")
+            if (receipt.discount > 0.0) printKeyValue("Desconto", "${money(receipt.discount)} kz")
+            printKeyValue("IVA", "${money(receipt.tax)} kz")
+            addSeparatorLine("=", 32)
+            printBitmapWithSpacing(
+                bitmap = createTextBitmap("TOTAL ${money(receipt.total)} kz", 30, bold = true),
+                topSpacing = 1, bottomSpacing = 1, alignment = 1
+            )
+            addSeparatorLine("=", 32)
+
+            // ── RESUMO POR TAXA ──
+            if (receipt.taxSummary.isNotEmpty()) {
+                printTextWithSpacing(
+                    "Taxa".padEnd(7) + "Incid.".padStart(13) + "IVA".padStart(12),
+                    bottomSpacing = 0
+                )
+                receipt.taxSummary.forEach { t ->
+                    printTextWithSpacing(
+                        "${t.rate.toInt()}%".padEnd(7) + money(t.base).padStart(13) + money(t.tax).padStart(12),
+                        bottomSpacing = 0
+                    )
+                }
+                addSpacing(1)
+                addSeparatorLine("-", 32)
+            }
+
+            // ── PAGAMENTO ──
             val paymentText = when (receipt.paymentMethod) {
                 "cash" -> "Dinheiro"
                 "card" -> "Cartão"
                 "qrcode" -> "QR Code"
                 else -> receipt.paymentMethod
             }
-
-            printTextWithSpacing(
-                text = "Pago a: $paymentText",
-                bottomSpacing = 1,
-                alignment = 1
-            )
-
-            // (29.16) Mostrar troco apenas se o pagamento for em dinheiro
+            printKeyValue("Pago a", paymentText)
             if (receipt.paymentMethod == "cash") {
+                receipt.paidAmount?.let { printKeyValue("Entregue", "${money(it)} kz") }
+                receipt.change?.let { printKeyValue("Troco", "${money(it)} kz") }
+            }
+            printKeyValue("Itens", receipt.itemsCount.toString())
 
-                // (29.17) Valor entregue pelo cliente — só imprime se não for null
-                receipt.paidAmount?.let {
-                    printTextWithSpacing(
-                        text = "Entregue: ${formatKz(it)} kz", // ✅ formatKz(Double)
-                        alignment = 1
-                    )
-                }
-
-                // (29.18) Troco a devolver ao cliente — só imprime se não for null
-                receipt.change?.let {
-                    printTextWithSpacing(
-                        text = "Troco de: ${formatKz(it)} kz", // ✅ formatKz(Double)
-                        bottomSpacing = 1,
-                        alignment = 1
-                    )
-                }
+            // ── LEGAL / FISCAL ──
+            receipt.legalText?.takeIf { it.isNotBlank() }?.let {
+                printTextWithSpacing(it, topSpacing = 1, bottomSpacing = 1, alignment = 1)
+            }
+            receipt.hash4?.takeIf { it.isNotBlank() }?.let {
+                printTextWithSpacing("$it-Processado por programa validado", bottomSpacing = 0, alignment = 1)
+                printTextWithSpacing("n. ${receipt.company?.certificateNumber ?: "-"}", bottomSpacing = 1, alignment = 1)
             }
 
-            addSeparatorLine("=", 32)
+            // ── QR CODE (nível M, conforme a AGT) ──
+            receipt.qrContent?.takeIf { it.isNotBlank() }?.let { content ->
+                printerService?.setAlignment(1, null)
+                printQRCode(content, moduleSize = 6, errorLevel = 1)   // 1 = M
+                printerService?.setAlignment(0, null)
+            }
 
-            // (29.19) Total final em destaque, centrado
-            printTextWithSpacing(
-                text = "TOTAL: ${formatKz(receipt.total)} kz", // ✅ formatKz(Double)
-                topSpacing = 1,
-                bottomSpacing = 1,
-                alignment = 1
-            )
+            // ── CÓDIGO DE BARRAS DO PEDIDO ──
+            receipt.orderId?.let {
+                printerService?.setAlignment(1, null)
+                printBarcode(it.toString().padStart(8, '0'), height = 60)
+                printerService?.setAlignment(0, null)
+            }
 
-            // (29.20) Linha dupla "===" fechando o corpo do recibo
-            addSeparatorLine("=", 32)
+            printTextWithSpacing("Obrigado pela preferencia!", topSpacing = 1, bottomSpacing = 0, alignment = 1)
+            printTextWithSpacing("Volte sempre", bottomSpacing = 1, alignment = 1)
+            printTextWithSpacing("=== ${receipt.copyType} ===", bottomSpacing = 4, alignment = 1)
 
-            // (29.21) Mensagem de agradecimento centrada
-            printTextWithSpacing(
-                text = "Obrigado pela preferencia!",
-                topSpacing = 1,
-                bottomSpacing = 0,
-                alignment = 1
-            )
+            if (onDone != null) {
+                printerService?.exitPrinterBufferWithCallback(true, object : InnerResultCallback() {
+                    override fun onRunResult(isSuccess: Boolean) {}
+                    override fun onReturnString(result: String?) {}
+                    override fun onRaiseException(code: Int, msg: String?) { onDone() }
+                    override fun onPrintResult(code: Int, msg: String?) { onDone() }
+                })
+            } else {
+                printerService?.exitPrinterBuffer(true)
+            }
 
-            printTextWithSpacing(
-                text = "Volte sempre",
-                bottomSpacing = 1,
-                alignment = 1
-            )
-
-            // (29.22) Identificação da via — 4 linhas em branco para o papel avançar e poder ser rasgado
-            printTextWithSpacing(
-                text = "=== ${receipt.copyType} ===",
-                bottomSpacing = 4,
-                alignment = 1
-            )
-
-            // (29.23) Confirma ao utilizador na UI que o recibo foi enviado à impressora
             Toast.makeText(context, "Recibo enviado!", Toast.LENGTH_SHORT).show()
 
         } catch (e: RemoteException) {
-            // (29.24) Captura erros de comunicação durante qualquer etapa da impressão do recibo
-            Toast.makeText(
-                context,
-                "Erro ao imprimir recibo: ${e.message}",
-                Toast.LENGTH_LONG
-            ).show()
+            Toast.makeText(context, "Erro ao imprimir recibo: ${e.message}", Toast.LENGTH_LONG).show()
             e.printStackTrace()
+            onDone?.invoke()
+        }
+    }
+
+    // Suspende até a impressora terminar (ou até ao limite, se algo falhar)
+    suspend fun printReceiptAndWait(receipt: ReceiptModel, timeoutMs: Long = 20_000) {
+        withTimeoutOrNull(timeoutMs) {
+            suspendCancellableCoroutine<Unit> { cont ->
+                printReceipt(receipt) { if (cont.isActive) cont.resume(Unit) }
+            }
         }
     }
 
@@ -433,48 +423,41 @@ class SunmiPrinter(private val context: Context) {
 
     // (32) Imprime o logo da loja no topo do documento.
     //      logoResId: ID do drawable a usar como imagem; se null, só imprime o nome em texto.
-    fun printLogo(logoResId: Int? = null) {
+    fun printLogo(logoResId: Int? = null, company: ReceiptCompany? = null) {
         try {
-            // (32.1) Só processa a imagem se um resId foi fornecido (não é null)
             logoResId?.let { resId ->
-                // (32.2) Acede aos recursos do contexto para poder ler o drawable
-                val resources = context.resources ?: return@let // Guard
-                // (32.3) Descodifica o drawable em Bitmap para poder imprimir como imagem
+                val resources = context.resources ?: return@let
                 val logoBitmap = BitmapFactory.decodeResource(resources, resId)
                 logoBitmap?.let {
-                    // (32.4) Redimensiona o bitmap para 200x100 px (tamanho ideal para a impressora)
                     val resized = resizeBitmap(it, 200, 100)
-                    // (32.5) Imprime o bitmap do logo centrado com espaçamentos definidos
                     printBitmapWithSpacing(
                         bitmap = resized,
                         topSpacing = 1,
                         bottomSpacing = 2,
-                        alignment = 1, // 1 = centrado
+                        alignment = 1,
                         callback = printCallback
                     )
                 }
             }
 
-            // (32.6) Cria um bitmap com o nome da loja em texto a negrito, tamanho 30px
-            val textBitmap = createTextBitmap("Tablex - COMERCIO, LDA", 30, bold = true)
-            val addrBitmap = createTextBitmap("Rua Amilcar Cabral, n252", 25, bold = true)
-            // (32.7) Imprime o nome da loja centrado com 1 linha de espaço abaixo
+            // nome e morada vêm do servidor; os valores fixos só servem de reserva
+            val name = company?.name ?: "KambaPOS - COMERCIO, LDA"
+            val nameSize = if (name.length > 24) 22 else 30   // papel ~384 px: nomes longos cortavam
             printBitmapWithSpacing(
-                bitmap = textBitmap,
+                bitmap = createTextBitmap(name, nameSize, bold = true),
                 topSpacing = 0,
                 bottomSpacing = 1,
                 alignment = 1
             )
 
+            val address = company?.address ?: "Rua Amilcar Cabral, n252"
             printBitmapWithSpacing(
-                bitmap = addrBitmap,
+                bitmap = createTextBitmap(address, 22, bold = true),
                 topSpacing = 0,
-                bottomSpacing = 3,
+                bottomSpacing = 2,
                 alignment = 1
             )
-
         } catch (e: RemoteException) {
-            // (32.8) Captura falhas de comunicação ao enviar o logo para a impressora
             e.printStackTrace()
         }
     }
@@ -649,9 +632,26 @@ class SunmiPrinter(private val context: Context) {
     // (41.2) ✅ Overload para Double — necessário para subtotal, tax, total, paidAmount, change.
     //        Formata com 2 casas decimais e separador de milhar angolano.
     //        Exemplos: 7450.0 → "7.450,00"   |   1011.5 → "1.011,50"
-    private fun formatKz(value: Double?): String =
-        String.format("%,.2f", value ?: 0.0).replace(",", ".")
 
+
+
+
+
+
+    // "%,.2f" depende do idioma do telemóvel (num telemóvel em inglês dava "1.299.00").
+// Locale.US fixa o formato e depois trocamos para o estilo angolano: 1.299,00
+    private fun money(value: Double): String =
+        String.format(Locale.US, "%,.2f", value)
+            .replace(",", "#").replace(".", ",").replace("#", ".")
+
+    private fun formatKz(value: Double?): String = money(value ?: 0.0)
+
+    private fun qtyText(q: Double): String =
+        if (q % 1.0 == 0.0) q.toInt().toString() else String.format(Locale.US, "%.3f", q).replace(".", ",")
+
+    // Linha de item em 32 colunas: QTD(6) IVA(5) UNIT(10) TOTAL(11)
+    private fun itemRow(qty: String, iva: String, unit: String, total: String): String =
+        qty.padEnd(6) + iva.padEnd(5) + unit.padStart(10) + total.padStart(11)
 
     // ════════════════════════════════════════════════════════
     // BLOCO J — UTILITÁRIOS DE BITMAP

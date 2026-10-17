@@ -2,6 +2,7 @@ package com.austin.kambapos.di
 
 import com.austin.kambapos.data.api.AuthApi
 import com.austin.kambapos.data.api.CoreUrl.BASE_URL
+import com.austin.kambapos.data.api.CustomerApi
 import com.austin.kambapos.data.api.OrdersApi
 import com.austin.kambapos.data.api.ProductApi
 import com.austin.kambapos.data.api.ShiftApi
@@ -54,8 +55,11 @@ object NetworkModule {
     fun provideOrdersApi(retrofit: Retrofit): OrdersApi =
         retrofit.create(OrdersApi::class.java)
 
-    // ✅ Novo
     @Provides
     fun provideUsersApi(retrofit: Retrofit): UsersApi =
         retrofit.create(UsersApi::class.java)
+
+    @Provides
+    fun provideCustomerApi(retrofit: Retrofit): CustomerApi =
+        retrofit.create(CustomerApi::class.java)
 }

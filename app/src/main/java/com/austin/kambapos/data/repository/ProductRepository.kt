@@ -8,6 +8,7 @@ import com.austin.kambapos.data.local.dao.ProductDao
 import com.austin.kambapos.data.local.entity.CategoryEntity
 import com.austin.kambapos.data.local.entity.ProductEntity
 import com.austin.kambapos.data.local.mapper.toEntity
+import com.austin.kambapos.data.model.ProductDTO
 import jakarta.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
@@ -51,29 +52,29 @@ class ProductRepository @Inject constructor(
 
     suspend fun syncAll() {
         try {
-            val productsResponse = api.getProducts(null, null)
-            Log.d("SYNC_DEBUG", "prod inseridas: ${productsResponse}")
+            val allProducts = mutableListOf<ProductDTO>()
+            var page = 1
+            var lastPage: Int
+
+            do {
+                val response = api.getProducts(page = page, perPage = 100)
+                allProducts += response.data
+                lastPage = response.lastPage
+                page++
+            } while (page <= lastPage)
+
             val categoriesResponse = api.getCategories()
-            Log.d("SYNC_DEBUG", "categorias inseridas: ${categoriesResponse}")
 
-            val productEntities = productsResponse.data.map { it.toEntity() }
-
-            Log.d("SYNC_DEBUG", "prod inseridas: ${productEntities.size}")
+            val productEntities = allProducts.map { it.toEntity() }
             val categoryEntities = categoriesResponse.data.map { it.toEntity() }
 
-            Log.d("SYNC_DEBUG", "Antes limpar categorias")
             categoryDao.clearAll()
             categoryDao.insertAll(categoryEntities)
-            Log.d("SYNC_DEBUG", "Categorias inseridas: ${categoryEntities.size}")
 
             productDao.clearAll()
             productDao.insertAll(productEntities)
+
             Log.d("SYNC_DEBUG", "Produtos inseridos: ${productEntities.size}")
-
-            // 🔹 Forçar atualização do carrinho
-            val productIds = productEntities.map { it.id }
-           // cartDao.refreshCartItems(productIds)
-
         } catch (e: Exception) {
             Log.e("SYNC_ERROR", "Erro sync", e)
         }

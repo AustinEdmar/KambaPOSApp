@@ -1,6 +1,7 @@
 package com.austin.kambapos.screens.profile
 
 import android.util.Log
+import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,13 +12,16 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavHostController
+import com.austin.kambapos.core.lib.SunmiPrinter
 import com.austin.kambapos.data.local.entity.OrderEntity
 import com.austin.kambapos.data.local.entity.OrderWithItems
+import com.austin.kambapos.data.local.mapper.toReceiptModel
 import com.austin.kambapos.data.model.UiStates.AuthUiState
 import com.austin.kambapos.data.model.UiStates.UserUiState
 import com.austin.kambapos.navigation.Screens
@@ -31,6 +35,7 @@ import com.austin.kambapos.viewmodel.AuthViewModel
 import com.austin.kambapos.viewmodel.HomeViewModel
 import com.austin.kambapos.viewmodel.OrderViewModel
 import com.austin.kambapos.viewmodel.ShiftViewModel
+import kotlinx.coroutines.launch
 
 // ── Palette ──────────────────────────────────────────────────────────────────
 
@@ -54,7 +59,13 @@ fun OrdersScreen(
 
     val total by orderViewModel.totalSales.collectAsState()
     val count by orderViewModel.ordersCount.collectAsState()
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val printer = remember { SunmiPrinter(context.applicationContext) }
+    var printing by remember { mutableStateOf(false) }
 
+    LaunchedEffect(Unit) { printer.connectPrinter() }
+    DisposableEffect(Unit) { onDispose { printer.disconnect() } }
 
 
     // Redireciona se deslogado
@@ -177,7 +188,25 @@ fun OrdersScreen(
     selectedOrder?.let { orderWithItems ->
         OrderDetailsDialog(
             orderWithItems = orderWithItems,
-            onDismiss = { selectedOrder = null }
+            onDismiss = { selectedOrder = null },
+            reprintEnabled = !printing,
+            onReprint = {
+                printing = true
+                scope.launch {
+                    orderViewModel.loadReceipt(orderWithItems.order.id)
+                        .onSuccess { resp ->
+                            printer.printReceipt(resp.toReceiptModel("REIMPRESSAO"))
+                        }
+                        .onFailure {
+                            Toast.makeText(
+                                context,
+                                it.message ?: "Erro ao obter o talão",
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                    printing = false
+                }
+            }
         )
     }
 

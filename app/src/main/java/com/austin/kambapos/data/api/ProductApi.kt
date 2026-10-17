@@ -12,7 +12,9 @@ interface ProductApi {
     @GET("products")
     suspend fun getProducts(
         @Query("category_id") categoryId: Int? = null,
-        @Query("search") search: String? = null
+        @Query("search") search: String? = null,
+        @Query("page") page: Int = 1,
+        @Query("per_page") perPage: Int = 100
     ): ApiResponse<ProductDTO>
 
 
